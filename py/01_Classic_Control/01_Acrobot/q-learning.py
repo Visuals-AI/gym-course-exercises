@@ -28,7 +28,7 @@ def main() :
     env = gym.make('Acrobot-v1')
 
     # 实现 “训练算法” 以进行训练
-    # 针对 Acrobot 问题， Q-learning 算法会更适合：
+    # 针对 Acrobot 问题， 理论上 Q-learning 算法会更适合：
     #   Q-learning（贪婪策略）：
     #       在更新值函数时，Q-learning 考虑的是下一个状态中可能获得的最大回报。
     #       它使用贪婪策略来更新 Q 值，即选择下一个状态中 Q 值最大的动作来进行更新。
@@ -37,6 +37,9 @@ def main() :
     train_by_qlearning(env)
 
 
+# 但是 Q 表 是离散的，Acrobot 的状态空间是连续的，实际并不适用
+# 除非将连续的状态映射到离散的索引上，但会把问题复杂化
+# 此处只是 Q-learning 思路的演示代码，实际上无法运行
 def train_by_qlearning(env) :
     # 从 Acrobot 文档中可知 状态空间（或观察空间） observation_space = Box([ -1. -1. -1. -1. -12.566371 -28.274334], [ 1. 1. 1. 1. 12.566371 28.274334], (6,), float32)
     #   Box 是 gym 定义的数据类型，代表一个 n 维的盒子，可以用来定义在每个维度上的连续值范围: 
