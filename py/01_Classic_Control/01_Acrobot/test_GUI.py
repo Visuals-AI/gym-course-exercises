@@ -1,3 +1,10 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# @Author : EXP
+# @Time   : 2023/11/25 23:56
+# -----------------------------------------------
+
+
 import gymnasium as gym  # 导入 Gym 的 Python 接口环境包
 env = gym.make('Acrobot-v1', render_mode="human")  # 构建实验环境
 env.reset()  # 重置一个 episode
