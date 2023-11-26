@@ -13,6 +13,7 @@
 
 
 import torch
+import numpy as np
 import gymnasium as gym
 from bean.dqn import DQN
 from conf.settings import *
@@ -22,6 +23,7 @@ from color_log.clog import log
 
 def main() :
     env = gym.make('Acrobot-v1', render_mode="human")   # human 表示启动交互界面
+    run_ai(env)
     
 
 def run_ai(env) :
@@ -43,6 +45,7 @@ def run_ai(env) :
         env.render()  # 渲染 GUI，前提是 env 初始化时使用 human 模式
         
         # 将当前状态转换为适当的输入格式
+        state = state[0] if isinstance(state, tuple) else state
         state = torch.from_numpy(state).float().unsqueeze(0)
         
         # 使用模型预测动作
@@ -51,6 +54,7 @@ def run_ai(env) :
         
         # 执行动作并获取下一个状态
         state, _, done, _, _ = env.step(action)
+        print(state)
         
         if done:
             state = env.reset()
