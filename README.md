@@ -21,3 +21,4 @@ conda activate RL_GYM
 pip install -r requirements.txt
 
 
+tensorboard --logdir=runs

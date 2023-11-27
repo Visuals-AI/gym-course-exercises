@@ -16,6 +16,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.cuda
+from tensorboardX import SummaryWriter
 from bean.dqn import DQN
 import random
 import numpy as np
@@ -47,6 +48,8 @@ def main() :
 
 
 def train_dqn(env) :
+    writer = SummaryWriter()
+
     # 从 Acrobot 文档中可知 状态空间（或观察空间） observation_space = Box([ -1. -1. -1. -1. -12.566371 -28.274334], [ 1. 1. 1. 1. 12.566371 28.274334], (6,), float32)
     #   Box 是 gym 定义的数据类型，代表一个 n 维的盒子，可以用来定义在每个维度上的连续值范围: 
     #       [ -1. -1. -1. -1. -12.566371 -28.274334] 是观察空间中每个维度的最小值
@@ -116,6 +119,11 @@ def train_dqn(env) :
         total_reward = 0        # 用于累计智能体从环境中获得的总奖励。在每个训练回合结束时，total_reward将反映智能体在该回合中的总体表现。奖励越高，意味着智能体的性能越好。
 
         env.render()
+
+        # 添加以下两行，用于记录训练过程信息到TensorBoard
+        episode_summary = {'Total Reward': 0, 'Epsilon': epsilon}
+        step_counter = 0
+
         while True:
 
             # epsilon-greedy策略：
@@ -150,6 +158,10 @@ def train_dqn(env) :
 
             if done:
                 log.debug(f"Episode: {episode+1}, Total reward: {total_reward}, Epsilon: {epsilon}")
+
+                # 记录本回合的总奖励到TensorBoard
+                episode_summary['Total Reward'] = total_reward
+                writer.add_scalars('Training', episode_summary, episode)
                 break
 
             # 确保只有当经验回放缓冲区（memory）中的样本数量超过批处理大小（batch_size）时，才进行学习过程。
@@ -181,7 +193,12 @@ def train_dqn(env) :
                     loss = criterion(target_f, model(m_state))    # 计算预测 Q 值（target_f）和通过网络重新预测当前状态 Q 值之间的损失。
                     loss.backward()         # 对损失进行反向传播，计算梯度
                     optimizer.step()        # 根据计算的梯度更新网络参数
+
+                    step_counter += 1
         # while end
+
+        # 在训练循环外，添加以下两行，用于记录每个回合结束时的步数到TensorBoard
+        writer.add_scalar('Training/Steps per Episode', step_counter, episode)
 
         # ε-贪婪策略（epsilon-greedy strategy）的强化学习技巧中的关键部分，用于平衡探索（exploration）和利用（exploitation）
         #   在强化学习中，智能体需要决定是利用当前已知的最佳策略（exploitation）来最大化短期奖励，还是探索新的动作（exploration）以获得更多信息，可能会带来更大的长期利益。
@@ -192,6 +209,9 @@ def train_dqn(env) :
         log.info(f"第 {episode} 轮训练结束")
     # for end
 
+    # 关闭TensorBoard的SummaryWriter
+    writer.close()
+    
     env.close()
     log.info("训练结束")
 

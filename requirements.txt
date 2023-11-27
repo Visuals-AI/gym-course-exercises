@@ -1,3 +1,4 @@
 gymnasium[all]
 pyglet
+tensorboardX
 py-color-log
