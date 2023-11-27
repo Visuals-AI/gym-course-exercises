@@ -34,7 +34,7 @@ def run_ai(env) :
     model = DQN(state_size, action_size)
 
     # 加载模型参数
-    model.load_state_dict(torch.load(TRIAN_MODEL_PATH))
+    model.load_state_dict(torch.load(ACROBOT_MODEL_PATH))
 
     # 设置为评估模式
     model.eval()

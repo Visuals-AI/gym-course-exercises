@@ -20,6 +20,7 @@ import random
 import numpy as np
 from collections import deque
 import gymnasium as gym
+from bean.checkpoint import CheckpointManager
 from tools.utils import *
 from conf.settings import *
 from color_log.clog import log
@@ -88,6 +89,9 @@ def train_dqn(env) :
     optimizer = optim.Adam(model.parameters(), lr=0.001)    # 定义了用于训练神经网络的优化器。这里使用的是Adam优化器，一个流行的梯度下降变种，lr=0.001设置了学习率为0.001。
     criterion = nn.MSELoss()    # 这定义了用于训练过程中的损失函数。这里使用的是均方误差损失（MSE Loss），它是评估神经网络预测值与实际值差异的常用方法。
 
+    checkpoint_manager = CheckpointManager(model, optimizer, epsilon)
+    # FIXME checkpoint_manager.load_checkpoint('path/to/checkpoint.pth')
+    
     # ------------------------------------------
     # 训练循环
     log.info("++++++++++++++++++++++++++++++++++++++++")
@@ -166,17 +170,19 @@ def train_dqn(env) :
         #   ε-贪婪策略通过一个参数ε（epsilon）来控制这种平衡。ε的值是一个0到1之间的数字，表示选择随机探索的概率。
         epsilon = max(min_epsilon, epsilon_decay * epsilon) # 衰减探索率
 
+        checkpoint_manager.save_checkpoint(episode)
         log.info(f"第 {episode} 轮训练结束")
     # for end
 
     env.close()
     log.info("训练结束")
 
-    torch.save(model.state_dict(), TRIAN_MODEL_PATH)
-    log.info(f"模型已保存到 {TRIAN_MODEL_PATH}")
+    torch.save(model.state_dict(), ACROBOT_MODEL_PATH)
+    log.info(f"模型已保存到 {ACROBOT_MODEL_PATH}")
     log.info("----------------------------------------")
 
-    
+
+
 
 if __name__ == '__main__' :
     main()

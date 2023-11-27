@@ -4,9 +4,13 @@
 # @Time   : 2023/11/25 23:56
 # -----------------------------------------------
 
+
+CHECKPOINTS_DIR = './out/checkpoints'
+
+
 # 训练完成后的输出位置
-TRIAN_OUT_DIR = './out'
-MODEL_NAME = 'acrobot_model.pth'
-TRIAN_MODEL_PATH = f"{TRIAN_OUT_DIR}/{MODEL_NAME}"
+MODELS_DIR = './out/models'
+ACROBOT_MODEL_NAME = 'acrobot_model.pth'
+ACROBOT_MODEL_PATH = f"{MODELS_DIR}/{ACROBOT_MODEL_NAME}"
 
 
