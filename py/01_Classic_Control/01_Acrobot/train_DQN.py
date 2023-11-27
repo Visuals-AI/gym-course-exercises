@@ -34,7 +34,7 @@ def main() :
     # 我们只需要关注 “训练算法” 本身，预设环境有一个统一标准、方便我们入门学习和交流
     # ------
     # 但是换言之，譬如以后我们要训练某个游戏的强化学习模型，除了算法之外，我们还要自己定义环境
-    env = gym.make('Acrobot-v1')
+    env = gym.make('Acrobot-v1', render_mode="human")
 
     # 实现 “训练算法” 以进行训练
     # 针对 Acrobot 问题， DQN 算法会更适合：
@@ -89,7 +89,7 @@ def train_dqn(env) :
     optimizer = optim.Adam(model.parameters(), lr=0.001)    # 定义了用于训练神经网络的优化器。这里使用的是Adam优化器，一个流行的梯度下降变种，lr=0.001设置了学习率为0.001。
     criterion = nn.MSELoss()    # 这定义了用于训练过程中的损失函数。这里使用的是均方误差损失（MSE Loss），它是评估神经网络预测值与实际值差异的常用方法。
 
-    checkpoint_manager = CheckpointManager(model, optimizer, epsilon)
+    # checkpoint_manager = CheckpointManager(model, optimizer, epsilon)
     # FIXME checkpoint_manager.load_checkpoint('path/to/checkpoint.pth')
     
     # ------------------------------------------
@@ -104,6 +104,7 @@ def train_dqn(env) :
         state = np.reshape(state[0], [1, state_size])  # 把状态数组转换成 1 x state_size 的数组，为了确保状态数组与神经网络的输入层匹配。
         total_reward = 0        # 用于累计智能体从环境中获得的总奖励。在每个训练回合结束时，total_reward将反映智能体在该回合中的总体表现。奖励越高，意味着智能体的性能越好。
 
+        env.render()
         while True:
 
             # epsilon-greedy策略：
@@ -170,7 +171,7 @@ def train_dqn(env) :
         #   ε-贪婪策略通过一个参数ε（epsilon）来控制这种平衡。ε的值是一个0到1之间的数字，表示选择随机探索的概率。
         epsilon = max(min_epsilon, epsilon_decay * epsilon) # 衰减探索率
 
-        checkpoint_manager.save_checkpoint(episode)
+        # checkpoint_manager.save_checkpoint(episode)
         log.info(f"第 {episode} 轮训练结束")
     # for end
 

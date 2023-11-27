@@ -43,11 +43,3 @@ class CheckpointManager:
         else:
             print(f"No checkpoint found at {checkpoint_path}")
 
-# 在代码中使用 CheckpointManager
-checkpoint_manager = CheckpointManager(model, optimizer, epsilon)
-
-# 保存检查点
-checkpoint_manager.save_checkpoint(episode)
-
-# 加载检查点
-checkpoint_manager.load_checkpoint('path/to/checkpoint.pth')
