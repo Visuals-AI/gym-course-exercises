@@ -7,6 +7,8 @@
 
 import os
 import torch
+from tools.utils import *
+
 
 class CheckpointManager:
     def __init__(self, model, optimizer, epsilon, save_dir='checkpoints', save_interval=10):
@@ -17,8 +19,8 @@ class CheckpointManager:
         self.save_interval = save_interval
 
         # 创建保存目录
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
+        create_dirs(save_dir)
+
 
     def save_checkpoint(self, episode):
         if (episode + 1) % self.save_interval == 0:
@@ -32,6 +34,7 @@ class CheckpointManager:
             }, checkpoint_path)
             print(f"Checkpoint saved at {checkpoint_path}")
 
+
     def load_checkpoint(self, checkpoint_path):
         if os.path.exists(checkpoint_path):
             checkpoint = torch.load(checkpoint_path)
@@ -43,3 +46,11 @@ class CheckpointManager:
         else:
             print(f"No checkpoint found at {checkpoint_path}")
 
+
+    def load_last_checkpoint(self):
+        checkpoints = [f for f in os.listdir(self.save_dir) if f.startswith('checkpoint_epoch_') and f.endswith('.pth')]
+        if checkpoints:
+            latest_checkpoint = max(checkpoints)
+            checkpoint_path = os.path.join(self.save_dir, latest_checkpoint)
+            self.load_checkpoint(checkpoint_path)
+        

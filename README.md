@@ -18,6 +18,6 @@ brew install swig
 
 conda create -n RL_GYM python=3.11.5
 conda activate RL_GYM
-pip install -r py/requirements.txt
+pip install -r requirements.txt
 
 

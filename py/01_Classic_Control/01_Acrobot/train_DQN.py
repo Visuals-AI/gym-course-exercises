@@ -15,6 +15,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.cuda
 from bean.dqn import DQN
 import random
 import numpy as np
@@ -86,11 +87,20 @@ def train_dqn(env) :
     min_epsilon = 0.01          # 最小探索率：即使经过多次衰减，探索率也不会低于这个值，确保了即使在后期也有一定程度的探索。
     batch_size = 32             # 定义了从经验回放存储中一次抽取并用于训练网络的经验的数量。批量大小为32意味着每次训练时会使用32个经验样本。
 
+
+    # ------------------------------------------
+    # 检查 GPU 是否可用
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)    # 将模型和优化器移动到 GPU
+
+
     optimizer = optim.Adam(model.parameters(), lr=0.001)    # 定义了用于训练神经网络的优化器。这里使用的是Adam优化器，一个流行的梯度下降变种，lr=0.001设置了学习率为0.001。
     criterion = nn.MSELoss()    # 这定义了用于训练过程中的损失函数。这里使用的是均方误差损失（MSE Loss），它是评估神经网络预测值与实际值差异的常用方法。
 
-    # checkpoint_manager = CheckpointManager(model, optimizer, epsilon)
-    # FIXME checkpoint_manager.load_checkpoint('path/to/checkpoint.pth')
+
+    # ------------------------------------------
+    checkpoint_manager = CheckpointManager(model, optimizer, epsilon, save_dir=CHECKPOINTS_DIR, save_interval=2)
+    checkpoint_manager.load_last_checkpoint()
     
     # ------------------------------------------
     # 训练循环
@@ -102,6 +112,7 @@ def train_dqn(env) :
         state = env.reset()     # 重置环境（在Acrobot环境中，这个初始状态是一个包含了关于Acrobot状态的数组，例如两个连杆的角度和角速度。）
         # state = (array([ 0.9996459 ,  0.02661069,  0.9958208 ,  0.09132832, -0.04581745, -0.06583451], dtype=float32), {})
         state = np.reshape(state[0], [1, state_size])  # 把状态数组转换成 1 x state_size 的数组，为了确保状态数组与神经网络的输入层匹配。
+        state = to_tensor(state, device)
         total_reward = 0        # 用于累计智能体从环境中获得的总奖励。在每个训练回合结束时，total_reward将反映智能体在该回合中的总体表现。奖励越高，意味着智能体的性能越好。
 
         env.render()
@@ -111,13 +122,16 @@ def train_dqn(env) :
             # 即智能体在选择动作时，有一定概率随机探索环境，而其余时间则根据已学习的策略选择最佳动作
             if np.random.rand() <= epsilon:
                 action = env.action_space.sample()  # 随机选择一个动作
+
+            # 智能体会根据当前经验、选择当前估计最优的动作
             else:
-                # 智能体会根据当前经验、选择当前估计最优的动作
-                action = torch.argmax(                  # 2. 神经网络模型输出每个可能动作的预期Q值。然后，使用torch.argmax选择具有最高预期Q值的动作，这代表了当前状态下的最佳动作。
-                    model(
-                        torch.from_numpy(state).float() # 1. 将当前状态转换为PyTorch张量并传递给神经网络模型（model）
-                    )
-                ).item()                                # 3. item 从张量中提取动作值
+                action = torch.argmax(model(state)).item()
+
+                # action = torch.argmax(                  # 2. 神经网络模型输出每个可能动作的预期Q值。然后，使用torch.argmax选择具有最高预期Q值的动作，这代表了当前状态下的最佳动作。
+                #     model(
+                #         torch.from_numpy(state).float() # 1. 将当前状态转换为PyTorch张量并传递给神经网络模型（model）
+                #     )
+                # ).item()                                # 3. item 从张量中提取动作值
 
             next_state, reward, done, truncated, info  = env.step(action)
             # log.debug("执行结果：")
@@ -128,6 +142,8 @@ def train_dqn(env) :
             # log.debug(f"  info 额外信息: {info}")                   # 通常用 hash 表附带自定义的额外信息（如诊断信息、调试信息），暂时不需要用到的额外信息。
 
             next_state = np.reshape(next_state, [1, state_size])
+            next_state = to_tensor(next_state, device)
+            
             memory.append((state, action, reward, next_state, done))    # 向memory（经验回放缓冲区）添加当前 step 执行前后状态、奖励情况等
             state = next_state      # 更新当前状态
             total_reward += reward  # 累计奖励
@@ -152,16 +168,17 @@ def train_dqn(env) :
                         # 使用Bellman方程计算目标Q值。
                         # 这涉及到将下一个状态（m_next_state）输入到网络中，以估计在该状态下所有可能动作的最大Q值，
                         # 然后将这个最大Q值乘以折扣因子（gamma）并加上即时奖励（m_reward）
-                        target = m_reward + gamma * torch.max(model(torch.from_numpy(m_next_state).float())).item()
+                        # target = m_reward + gamma * torch.max(model(torch.from_numpy(m_next_state).float())).item()
+                        target = m_reward + gamma * torch.max(model(m_next_state)).item()
 
                         # 简单说明 Bellman 方程，它是 动态规划 中的一个概念： 
                         #   一个状态的最优价值是在该状态下所有可能动作中可以获得的最大回报，其中每个动作的回报是即时奖励加上下一个状态在最优策略下的折扣后的价值。
 
                     
-                    target_f = model(torch.from_numpy(m_state).float()) # 通过神经网络模型预测当前状态（m_state）下的 Q 值。
+                    target_f = model(m_state) # 通过神经网络模型预测当前状态（m_state）下的 Q 值。
                     target_f[0][m_action] = target                      # 更新与执行的动作（m_action）对应的 Q 值为之前计算的目标 Q 值。
                     optimizer.zero_grad()                               # 在每次网络更新前清除旧的梯度，这是PyTorch的标准做法。
-                    loss = criterion(target_f, model(torch.from_numpy(m_state).float()))    # 计算预测 Q 值（target_f）和通过网络重新预测当前状态 Q 值之间的损失。
+                    loss = criterion(target_f, model(m_state))    # 计算预测 Q 值（target_f）和通过网络重新预测当前状态 Q 值之间的损失。
                     loss.backward()         # 对损失进行反向传播，计算梯度
                     optimizer.step()        # 根据计算的梯度更新网络参数
         # while end
@@ -171,7 +188,7 @@ def train_dqn(env) :
         #   ε-贪婪策略通过一个参数ε（epsilon）来控制这种平衡。ε的值是一个0到1之间的数字，表示选择随机探索的概率。
         epsilon = max(min_epsilon, epsilon_decay * epsilon) # 衰减探索率
 
-        # checkpoint_manager.save_checkpoint(episode)
+        checkpoint_manager.save_checkpoint(episode)
         log.info(f"第 {episode} 轮训练结束")
     # for end
 
@@ -183,6 +200,14 @@ def train_dqn(env) :
     log.info("----------------------------------------")
 
 
+
+def to_tensor(data, device):
+    if isinstance(data, np.ndarray):
+        return torch.from_numpy(data).float().to(device)
+    elif isinstance(data, torch.Tensor):
+        return data.to(device)
+    else:
+        return data
 
 
 if __name__ == '__main__' :
