@@ -5,6 +5,7 @@
 # -----------------------------------------------
 
 
+import re
 import os
 import torch
 from tools.utils import *
@@ -48,9 +49,12 @@ class CheckpointManager:
 
 
     def load_last_checkpoint(self):
+        last_idx = 0
         checkpoints = [f for f in os.listdir(self.save_dir) if f.startswith('checkpoint_epoch_') and f.endswith('.pth')]
         if checkpoints:
             latest_checkpoint = max(checkpoints)
+            last_idx = int(re.search(r'\d+', latest_checkpoint)[0])
             checkpoint_path = os.path.join(self.save_dir, latest_checkpoint)
             self.load_checkpoint(checkpoint_path)
+        return last_idx
         
