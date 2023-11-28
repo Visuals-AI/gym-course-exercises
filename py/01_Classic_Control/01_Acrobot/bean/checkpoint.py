@@ -85,7 +85,7 @@ class CheckpointManager:
 
     def _checkpoint_name(self, idx='') :
         if not idx :
-            idx = datetime.now().strftime("%Y%m%d%H%M%S")
+            idx = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         return f'{CHECKPOINT_PREFIX}_{idx}{CHECKPOINT_SUFFIX}'
 
 
