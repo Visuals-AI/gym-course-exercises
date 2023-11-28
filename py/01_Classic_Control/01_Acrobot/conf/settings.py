@@ -6,6 +6,9 @@
 
 
 CHECKPOINTS_DIR = './out/checkpoints'
+CHECKPOINT_PREFIX = 'checkpoint_epoch'
+CHECKPOINT_SUFFIX = '.pth'
+SAVE_CHECKPOINT_INTERVAL = 10
 
 
 # 训练完成后的输出位置

@@ -7,56 +7,86 @@
 
 import re
 import os
+import datetime
 import torch
+from conf.settings import *
 from tools.utils import *
+from color_log.clog import log
+
+
+KEY_MODEL_STATE_DICT = 'model_state_dict'
+KEY_OPTIMIZER_STATE_DICT = 'optimizer_state_dict'
+KEY_EPISODE = 'episode'
+KEY_EPSILON = 'epsilon'
+KEY_INFO = 'info'
+
+
+class Checkpoint :
+
+    def __init__(self, model_state_dict, optimizer_state_dict, episode, epsilon, info={}) -> None:
+        self.model_state_dict = model_state_dict
+        self.optimizer_state_dict = optimizer_state_dict
+        self.episode = episode      # 已训练的回合数（迭代数）
+        self.epsilon = epsilon      # 当前探索率
+        self.info = info            # 其他信息
+    
 
 
 class CheckpointManager:
-    def __init__(self, model, optimizer, epsilon, save_dir='checkpoints', save_interval=10):
-        self.model = model
-        self.optimizer = optimizer
-        self.epsilon = epsilon
-        self.save_dir = save_dir
+
+    def __init__(self, checkpoints_dir=CHECKPOINTS_DIR, 
+                 save_interval=SAVE_CHECKPOINT_INTERVAL) :
+        self.checkpoints_dir = checkpoints_dir
         self.save_interval = save_interval
-
-        # 创建保存目录
-        create_dirs(save_dir)
+        create_dirs(checkpoints_dir)
 
 
-    def save_checkpoint(self, episode):
-        if (episode + 1) % self.save_interval == 0:
-            checkpoint_path = os.path.join(self.save_dir, f'checkpoint_epoch_{episode}.pth')
+    def save_checkpoint(self, model, optimizer, episode, epsilon, info={}) :
+        if episode % self.save_interval == 0 :
+            checkpoint_path = os.path.join(self.checkpoints_dir, self._checkpoint_name())
             torch.save({
-                'episode': episode,
-                'model_state_dict': self.model.state_dict(),
-                'optimizer_state_dict': self.optimizer.state_dict(),
-                'epsilon': self.epsilon,
-                # 其他需要保存的参数
+                KEY_MODEL_STATE_DICT: model.state_dict(),
+                KEY_OPTIMIZER_STATE_DICT: optimizer.state_dict(),
+                KEY_EPISODE: episode,
+                KEY_EPSILON: epsilon,
+                KEY_INFO: info,
             }, checkpoint_path)
-            print(f"Checkpoint saved at {checkpoint_path}")
+            log.info(f"已训练 [{episode}] 回合，自动存储检查点: {checkpoint_path}")
 
 
-    def load_checkpoint(self, checkpoint_path):
-        if os.path.exists(checkpoint_path):
-            checkpoint = torch.load(checkpoint_path)
-            self.model.load_state_dict(checkpoint['model_state_dict'])
-            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.epsilon = checkpoint['epsilon']
-            # 加载其他状态（如果有的话）
-            print(f"Checkpoint loaded from {checkpoint_path}")
-        else:
-            print(f"No checkpoint found at {checkpoint_path}")
-
-
-    def load_last_checkpoint(self):
+    def load_last_checkpoint(self) -> Checkpoint :
         last_idx = 0
-        checkpoints = [f for f in os.listdir(self.save_dir) if f.startswith('checkpoint_epoch_') and f.endswith('.pth')]
-        for cp in checkpoints :
-            idx = int(re.search(r'\d+', cp)[0])
+        checkpoint_names = [f for f in os.listdir(self.checkpoints_dir) if f.endswith(CHECKPOINT_SUFFIX)]
+        for cpn in checkpoint_names :
+            idx = int(re.search(r'\d+', cpn)[0])
             last_idx = max(last_idx, idx)
 
+        checkpoint = None
         if last_idx > 0 :
-            checkpoint_path = os.path.join(self.save_dir, f"checkpoint_epoch_{last_idx}.pth")
-            self.load_checkpoint(checkpoint_path)
-        return last_idx
+            checkpoint_path = os.path.join(self.checkpoints_dir, self._checkpoint_name(last_idx))
+            checkpoint = self.load_checkpoint(checkpoint_path)
+        return checkpoint
+    
+
+    def load_checkpoint(self, checkpoint_path) -> Checkpoint :
+        checkpoint = None
+        if os.path.exists(checkpoint_path) :
+            cp = torch.load(checkpoint_path)
+            checkpoint = Checkpoint(
+                model_state_dict = cp.get(KEY_MODEL_STATE_DICT), 
+                optimizer_state_dict = cp.get(KEY_OPTIMIZER_STATE_DICT), 
+                episode = cp.get(KEY_EPISODE), 
+                epsilon = cp.get(KEY_EPSILON), 
+                info = cp.get(KEY_INFO, {})
+            )
+            log.warn(f"已加载上次训练的检查点：{checkpoint_path}")
+        return checkpoint
         
+
+    def _checkpoint_name(self, idx='') :
+        if not idx :
+            idx = datetime.now().strftime("%Y%m%d%H%M%S")
+        return f'{CHECKPOINT_PREFIX}_{idx}{CHECKPOINT_SUFFIX}'
+
+
+

@@ -83,6 +83,7 @@ def train_dqn(env) :
     model = DQN(state_size, action_size)  # DQN 简单的三层网络模型
     memory = deque(maxlen=2000)           # 创建一个双端队列（deque），作为经验回放的存储。当存储超过2000个元素时，最旧的元素将被移除。经验回放是DQN中的一项关键技术，有助于打破经验间的相关性并提高学习的效率和稳定性。
 
+    cur_episode = 0
     episodes = 1000             # 训练次数：定义了训练过程中智能体将经历的总回合数。每个回合是一个从初始状态到终止状态的完整序列。
     gamma = 0.95                # 折扣因子：用于计算未来奖励的当前价值。它决定了未来奖励对当前决策的影响程度。值越高，智能体越重视长远利益。通常设置在 0.9 到 0.99 之间。这里 0.99 的值表明智能体在做出决策时非常重视未来的奖励。
     epsilon = 1.0               # 探索率：探索率：用于 epsilon-greedy 策略，它决定了智能体探索新动作的频率。值越高，智能体越倾向于尝试新的、不确定的动作而不是已知的最佳动作。这个值通常在训练初期较高，以鼓励探索，随着学习的进行逐渐降低。初始值为 1.0 意味着智能体在开始时完全随机探索。
@@ -102,9 +103,14 @@ def train_dqn(env) :
 
 
     # ------------------------------------------
-    checkpoint_manager = CheckpointManager(model, optimizer, epsilon, save_dir=CHECKPOINTS_DIR)
-    last_idx = checkpoint_manager.load_last_checkpoint()
-    # FIXME 其他参数没有取出进行续点
+    checkpoint_manager = CheckpointManager()
+    last_checkpoint = checkpoint_manager.load_last_checkpoint()
+    if last_checkpoint :
+        cur_episode = last_checkpoint.episode + 1
+        epsilon = last_checkpoint.epsilon
+        model.load_state_dict(last_checkpoint.model_state_dict)
+        optimizer.load_state_dict(last_checkpoint.optimizer_state_dict)
+
     # FIXME 添加动作次数限制，当前已经执行几步
     # TensorBoard 怎么看
     
@@ -112,7 +118,7 @@ def train_dqn(env) :
     # 训练循环
     log.info("++++++++++++++++++++++++++++++++++++++++")
     log.info("开始训练 ...")
-    for episode in range(last_idx, episodes) :
+    for episode in range(cur_episode, episodes) :
         log.info(f"第 {episode} 轮训练开始 ...")
 
         state = env.reset()     # 重置环境（在Acrobot环境中，这个初始状态是一个包含了关于Acrobot状态的数组，例如两个连杆的角度和角速度。）
@@ -208,7 +214,7 @@ def train_dqn(env) :
         #   ε-贪婪策略通过一个参数ε（epsilon）来控制这种平衡。ε的值是一个0到1之间的数字，表示选择随机探索的概率。
         epsilon = max(min_epsilon, epsilon_decay * epsilon) # 衰减探索率
 
-        checkpoint_manager.save_checkpoint(episode)
+        checkpoint_manager.save_checkpoint(model, optimizer, episode, epsilon)
         log.info(f"第 {episode} 轮训练结束")
     # for end
 
