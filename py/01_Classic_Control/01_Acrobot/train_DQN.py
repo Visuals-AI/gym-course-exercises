@@ -104,6 +104,9 @@ def train_dqn(env) :
     # ------------------------------------------
     checkpoint_manager = CheckpointManager(model, optimizer, epsilon, save_dir=CHECKPOINTS_DIR)
     last_idx = checkpoint_manager.load_last_checkpoint()
+    # FIXME 其他参数没有取出进行续点
+    # FIXME 添加动作次数限制，当前已经执行几步
+    # TensorBoard 怎么看
     
     # ------------------------------------------
     # 训练循环

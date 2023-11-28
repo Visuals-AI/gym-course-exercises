@@ -51,10 +51,12 @@ class CheckpointManager:
     def load_last_checkpoint(self):
         last_idx = 0
         checkpoints = [f for f in os.listdir(self.save_dir) if f.startswith('checkpoint_epoch_') and f.endswith('.pth')]
-        if checkpoints:
-            latest_checkpoint = max(checkpoints)
-            last_idx = int(re.search(r'\d+', latest_checkpoint)[0])
-            checkpoint_path = os.path.join(self.save_dir, latest_checkpoint)
+        for cp in checkpoints :
+            idx = int(re.search(r'\d+', cp)[0])
+            last_idx = max(last_idx, idx)
+
+        if last_idx > 0 :
+            checkpoint_path = os.path.join(self.save_dir, f"checkpoint_epoch_{last_idx}.pth")
             self.load_checkpoint(checkpoint_path)
         return last_idx
         
