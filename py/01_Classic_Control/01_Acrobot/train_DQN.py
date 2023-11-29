@@ -12,6 +12,7 @@
 # -----------------------------------------------
 
 
+import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -28,7 +29,30 @@ from conf.settings import *
 from color_log.clog import log
 
 
-def main() :
+def arguments() :
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        prog='Gym - Acrobot 训练脚本',
+        description='在默认环境下、使用深度 Q 网络（DQN）训练智能体操作 Acrobot', 
+        epilog='\r\n'.join([
+            '运行环境: python3', 
+            '运行示例: python py/01_Classic_Control/01_Acrobot/train_DQN.py'
+        ])
+    )
+    parser.add_argument('-d', '--debug', dest='debug', action='store_true', default=False, help='调试模式')
+    parser.add_argument('-r', '--render', dest='render', action='store_true', default=False, help='渲染模式: 可以通过 GUI 观察智能体实时交互情况')
+    parser.add_argument('-c', '--cpu', dest='cpu', action='store_true', default=False, help='强制使用 CPU: 默认情况下，自动优先使用 GPU 训练（除非没有 GPU）')
+    parser.add_argument('-e', '--episodes', dest='episodes', type=int, default=1000, help='训练次数: 即训练过程中智能体将经历的总回合数。每个回合是一个从初始状态到终止状态的完整序列')
+    parser.add_argument('-g', '--gamma', dest='gamma', type=float, default=0.95, help='折扣因子: 用于折算未来奖励的在当前回合中的价值。它决定了未来奖励对当前决策的影响程度。值越高，智能体越重视长远利益，通常设置在 0.9 到 0.99 之')
+
+    # epsilon = 1.0               # 探索率：探索率：用于 epsilon-greedy 策略，它决定了智能体探索新动作的频率。值越高，智能体越倾向于尝试新的、不确定的动作而不是已知的最佳动作。这个值通常在训练初期较高，以鼓励探索，随着学习的进行逐渐降低。初始值为 1.0 意味着智能体在开始时完全随机探索。
+    # epsilon_decay = 0.995       # 衰减率：定义了探索率随时间逐渐减小的速率。每经过一个回合，epsilon将乘以这个衰减率，从而随着时间的推移减少随机探索的频率。
+    # min_epsilon = 0.01          # 最小探索率：即使经过多次衰减，探索率也不会低于这个值，确保了即使在后期也有一定程度的探索。
+    # batch_size = 32             # 定义了从经验回放存储中一次抽取并用于训练网络的经验的数量。批量大小为32意味着每次训练时会使用32个经验样本。
+    return parser.parse_args()
+
+
+def main(args) :
     # 创建和配置环境
     # ------
     # Acrobot-v1 表示使用 Acrobot（版本v1）的预设环境
@@ -37,18 +61,6 @@ def main() :
     # ------
     # 但是换言之，譬如以后我们要训练某个游戏的强化学习模型，除了算法之外，我们还要自己定义环境
     env = gym.make('Acrobot-v1', render_mode="human")
-
-    # 实现 “训练算法” 以进行训练
-    # 针对 Acrobot 问题， DQN 算法会更适合：
-    #   DQN（Deep Q-Network）是一种将深度学习与强化学习相结合的算法
-    #   它主要用于解决具有连续、高维状态空间的问题，特别是那些传统的 Q-learning 算法难以处理的问题。
-    #   在 DQN 中，传统 Q-learning 中的 Q 表（一个用于存储所有状态-动作对应价值的巨大表格）被一个深度神经网络所替代。
-    #   这个神经网络被训练来预测给定状态和动作下的 Q 值
-    train_dqn(env)
-
-
-def train_dqn(env) :
-    writer = SummaryWriter()
 
     # 从 Acrobot 文档中可知 状态空间（或观察空间） observation_space = Box([ -1. -1. -1. -1. -12.566371 -28.274334], [ 1. 1. 1. 1. 12.566371 28.274334], (6,), float32)
     #   Box 是 gym 定义的数据类型，代表一个 n 维的盒子，可以用来定义在每个维度上的连续值范围: 
@@ -74,6 +86,17 @@ def train_dqn(env) :
     # 这些动作是离散的，通过选择不同的动作，智能体可以控制 Acrobot 的行动，使其实现特定的运动目标，如摆动到一定高度。
     log.debug(env.action_space)
 
+    # 实现 “训练算法” 以进行训练
+    # 针对 Acrobot 问题， DQN 算法会更适合：
+    #   DQN（Deep Q-Network）是一种将深度学习与强化学习相结合的算法
+    #   它主要用于解决具有连续、高维状态空间的问题，特别是那些传统的 Q-learning 算法难以处理的问题。
+    #   在 DQN 中，传统 Q-learning 中的 Q 表（一个用于存储所有状态-动作对应价值的巨大表格）被一个深度神经网络所替代。
+    #   这个神经网络被训练来预测给定状态和动作下的 Q 值
+    train_dqn(args, env)
+
+
+def train_dqn(args, env) :
+    writer = SummaryWriter()
 
     # ------------------------------------------
     # 深度 Q 网络（DQN）算法的关键参数和设置
@@ -91,10 +114,9 @@ def train_dqn(env) :
     min_epsilon = 0.01          # 最小探索率：即使经过多次衰减，探索率也不会低于这个值，确保了即使在后期也有一定程度的探索。
     batch_size = 32             # 定义了从经验回放存储中一次抽取并用于训练网络的经验的数量。批量大小为32意味着每次训练时会使用32个经验样本。
 
-
     # ------------------------------------------
     # 检查 GPU 是否可用
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = scan_device(args.cpu)
     model.to(device)    # 将模型和优化器移动到 GPU
 
 
@@ -230,6 +252,18 @@ def train_dqn(env) :
 
 
 
+def scan_device(use_cpu=False) :
+    '''
+    扫描可用设备。
+    默认情况下，如果同时存在 GPU 和 CPU，优先使用 GPU。
+    params: use_cpu 强制使用 CPU
+    return: 可用设备
+    '''
+    device_name = "cuda" if not use_cpu and torch.cuda.is_available() else "cpu"
+    device = torch.device(device_name)
+    return device
+
+
 def to_tensor(data, device):
     if isinstance(data, np.ndarray):
         return torch.from_numpy(data).float().to(device)
@@ -240,4 +274,4 @@ def to_tensor(data, device):
 
 
 if __name__ == '__main__' :
-    main()
+    main(arguments())
