@@ -166,6 +166,7 @@ def train_dqn(args, env) :
                 # ).item()                                # 3. item 从张量中提取动作值
 
             next_state, reward, terminated, truncated, info  = env.step(action)
+            # FIXME truncated 状态有问题，需要对于调整 reward
             done = terminated or truncated      # 解释详见 https://stackoverflow.com/questions/73195438/openai-gyms-env-step-what-are-the-values
             # log.debug("执行结果：")
             # log.debug(f"  next_state 状态空间变化：{next_state}")    # 执行动作后的新状态或观察。这是智能体在下一个时间步将观察到的环境状态。
