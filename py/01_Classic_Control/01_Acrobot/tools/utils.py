@@ -5,6 +5,7 @@
 # -----------------------------------------------
 
 import os
+import time
 
 
 def create_dirs(path):
@@ -12,4 +13,7 @@ def create_dirs(path):
         os.makedirs(path)
 
 
+
+def current_millis() :
+    return int(time.time() * 1000)
 

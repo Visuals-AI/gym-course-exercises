@@ -39,16 +39,14 @@ def arguments() :
             '运行示例: python py/01_Classic_Control/01_Acrobot/train_DQN.py'
         ])
     )
-    parser.add_argument('-d', '--debug', dest='debug', action='store_true', default=False, help='调试模式')
     parser.add_argument('-r', '--render', dest='render', action='store_true', default=False, help='渲染模式: 可以通过 GUI 观察智能体实时交互情况')
     parser.add_argument('-c', '--cpu', dest='cpu', action='store_true', default=False, help='强制使用 CPU: 默认情况下，自动优先使用 GPU 训练（除非没有 GPU）')
     parser.add_argument('-e', '--episodes', dest='episodes', type=int, default=1000, help='训练次数: 即训练过程中智能体将经历的总回合数。每个回合是一个从初始状态到终止状态的完整序列')
-    parser.add_argument('-g', '--gamma', dest='gamma', type=float, default=0.95, help='折扣因子: 用于折算未来奖励的在当前回合中的价值。它决定了未来奖励对当前决策的影响程度。值越高，智能体越重视长远利益，通常设置在 0.9 到 0.99 之')
-
-    # epsilon = 1.0               # 探索率：探索率：用于 epsilon-greedy 策略，它决定了智能体探索新动作的频率。值越高，智能体越倾向于尝试新的、不确定的动作而不是已知的最佳动作。这个值通常在训练初期较高，以鼓励探索，随着学习的进行逐渐降低。初始值为 1.0 意味着智能体在开始时完全随机探索。
-    # epsilon_decay = 0.995       # 衰减率：定义了探索率随时间逐渐减小的速率。每经过一个回合，epsilon将乘以这个衰减率，从而随着时间的推移减少随机探索的频率。
-    # min_epsilon = 0.01          # 最小探索率：即使经过多次衰减，探索率也不会低于这个值，确保了即使在后期也有一定程度的探索。
-    # batch_size = 32             # 定义了从经验回放存储中一次抽取并用于训练网络的经验的数量。批量大小为32意味着每次训练时会使用32个经验样本。
+    parser.add_argument('-g', '--gamma', dest='gamma', type=float, default=0.95, help='折扣因子: 用于折算未来奖励的在当前回合中的价值。它决定了未来奖励对当前决策的影响程度。值越高，智能体越重视长远利益，通常设置在 [0.9, 0.99]')
+    parser.add_argument('-s', '--epsilon', dest='epsilon', type=float, default=1.0, help='探索率: 用于 epsilon-greedy 策略，它决定了智能体探索新动作的频率。值越高，智能体越倾向于尝试新的、不确定的动作而不是已知的最佳动作。这个值通常在训练初期较高，随着学习的进行逐渐降低')
+    parser.add_argument('-d', '--epsilon_decay', dest='epsilon_decay', type=float, default=0.995, help='衰减率: 探索率随时间逐渐减小的速率。每经过一个回合，epsilon 将乘以这个衰减率，从而随着时间的推移减少随机探索的频率')
+    parser.add_argument('-m', '--min_epsilon', dest='min_epsilon', type=float, default=0.1, help='最小探索率: 即使经过多次衰减，探索率也不会低于这个值，确保了即使在后期也有一定程度的探索')
+    parser.add_argument('-b', '--batch_size', dest='batch_size', type=int, default=32, help='从经验回放存储中一次抽取并用于训练网络的经验的数量。默认为 32，意味着每次训练时会使用 32 个经验样本')
     return parser.parse_args()
 
 
@@ -96,6 +94,7 @@ def main(args) :
 
 
 def train_dqn(args, env) :
+    # TODO： TensorBoard 怎么看
     writer = SummaryWriter()
 
     # ------------------------------------------
@@ -105,14 +104,6 @@ def train_dqn(args, env) :
 
     model = DQN(state_size, action_size)  # DQN 简单的三层网络模型
     memory = deque(maxlen=2000)           # 创建一个双端队列（deque），作为经验回放的存储。当存储超过2000个元素时，最旧的元素将被移除。经验回放是DQN中的一项关键技术，有助于打破经验间的相关性并提高学习的效率和稳定性。
-
-    cur_episode = 0
-    episodes = 1000             # 训练次数：定义了训练过程中智能体将经历的总回合数。每个回合是一个从初始状态到终止状态的完整序列。
-    gamma = 0.95                # 折扣因子：用于计算未来奖励的当前价值。它决定了未来奖励对当前决策的影响程度。值越高，智能体越重视长远利益。通常设置在 0.9 到 0.99 之间。这里 0.99 的值表明智能体在做出决策时非常重视未来的奖励。
-    epsilon = 1.0               # 探索率：探索率：用于 epsilon-greedy 策略，它决定了智能体探索新动作的频率。值越高，智能体越倾向于尝试新的、不确定的动作而不是已知的最佳动作。这个值通常在训练初期较高，以鼓励探索，随着学习的进行逐渐降低。初始值为 1.0 意味着智能体在开始时完全随机探索。
-    epsilon_decay = 0.995       # 衰减率：定义了探索率随时间逐渐减小的速率。每经过一个回合，epsilon将乘以这个衰减率，从而随着时间的推移减少随机探索的频率。
-    min_epsilon = 0.01          # 最小探索率：即使经过多次衰减，探索率也不会低于这个值，确保了即使在后期也有一定程度的探索。
-    batch_size = 32             # 定义了从经验回放存储中一次抽取并用于训练网络的经验的数量。批量大小为32意味着每次训练时会使用32个经验样本。
 
     # ------------------------------------------
     # 检查 GPU 是否可用
@@ -125,6 +116,9 @@ def train_dqn(args, env) :
 
 
     # ------------------------------------------
+    cur_episode = 0
+    epsilon = args.epsilon
+
     checkpoint_manager = CheckpointManager()
     last_checkpoint = checkpoint_manager.load_last_checkpoint()
     if last_checkpoint :
@@ -133,14 +127,12 @@ def train_dqn(args, env) :
         model.load_state_dict(last_checkpoint.model_state_dict)
         optimizer.load_state_dict(last_checkpoint.optimizer_state_dict)
 
-    # FIXME 添加动作次数限制，当前已经执行几步
-    # TensorBoard 怎么看
-    
+
     # ------------------------------------------
     # 训练循环
     log.info("++++++++++++++++++++++++++++++++++++++++")
     log.info("开始训练 ...")
-    for episode in range(cur_episode, episodes) :
+    for episode in range(cur_episode, args.episodes) :
         log.info(f"第 {episode} 轮训练开始 ...")
 
         state = env.reset()     # 重置环境（在Acrobot环境中，这个初始状态是一个包含了关于Acrobot状态的数组，例如两个连杆的角度和角速度。）
@@ -153,8 +145,9 @@ def train_dqn(args, env) :
 
         # 添加以下两行，用于记录训练过程信息到TensorBoard
         episode_summary = {'Total Reward': 0, 'Epsilon': epsilon}
-        step_counter = 0
 
+        bgn_time = current_millis()
+        step_counter = 0
         while True:
 
             # epsilon-greedy策略：
@@ -172,12 +165,12 @@ def train_dqn(args, env) :
                 #     )
                 # ).item()                                # 3. item 从张量中提取动作值
 
-            next_state, reward, done, truncated, info  = env.step(action)
+            next_state, reward, terminated, truncated, info  = env.step(action)
+            done = terminated or truncated      # 解释详见 https://stackoverflow.com/questions/73195438/openai-gyms-env-step-what-are-the-values
             # log.debug("执行结果：")
             # log.debug(f"  next_state 状态空间变化：{next_state}")    # 执行动作后的新状态或观察。这是智能体在下一个时间步将观察到的环境状态。
             # log.debug(f"  reward 获得奖励情况： {reward}")           # 执行动作后获得的奖励。这是一个数值，指示执行该动作的效果好坏，是强化学习中的关键信号，作为当次动作的反馈。
             # log.debug(f"  done 当前回合是否结束: {done}")            # 可能成功也可能失败，例如在一些游戏中，达到目标或失败会结束回合。
-            # log.debug(f"  truncated 当前回合是否提前结束: {truncated}")  # 新版 gym 新增的返回参数，指示回合是否因为达到了某种环境特定的最大步数限制而提前结束，而非因为达到了某种终止状态。这主要用于区分回合是正常结束还是被截断（例如，在某些环境中，为了避免无限循环，会设置最大步数限制）。
             # log.debug(f"  info 额外信息: {info}")                   # 通常用 hash 表附带自定义的额外信息（如诊断信息、调试信息），暂时不需要用到的额外信息。
 
             next_state = np.reshape(next_state, [1, state_size])
@@ -199,8 +192,8 @@ def train_dqn(args, env) :
             # 这是为了确保有足够的样本来进行有效的批量学习。
             # 这个过程是DQN学习算法的核心，它利用从环境中收集的经验（通过经验回放）来不断调整和优化网络，使得预测的Q值尽可能接近实际的Q值。
             # 这种基于值的强化学习方法通过迭代这个过程，逐渐学习到一个策略，该策略可以最大化累积奖励。
-            if len(memory) > batch_size:
-                minibatch = random.sample(memory, batch_size)   # 从memory中随机抽取batch_size数量的样本。这种随机抽样是为了减少样本间的相关性，增强学习的稳定性和效率。
+            if len(memory) > args.batch_size:
+                minibatch = random.sample(memory, args.batch_size)   # 从memory中随机抽取batch_size数量的样本。这种随机抽样是为了减少样本间的相关性，增强学习的稳定性和效率。
                 for m_state, m_action, m_reward, m_next_state, m_done in minibatch:
 
                     # target 即为目标 Q 值。 初始化为观测到的即时奖励（m_reward）
@@ -212,7 +205,7 @@ def train_dqn(args, env) :
                         # 这涉及到将下一个状态（m_next_state）输入到网络中，以估计在该状态下所有可能动作的最大Q值，
                         # 然后将这个最大Q值乘以折扣因子（gamma）并加上即时奖励（m_reward）
                         # target = m_reward + gamma * torch.max(model(torch.from_numpy(m_next_state).float())).item()
-                        target = m_reward + gamma * torch.max(model(m_next_state)).item()
+                        target = m_reward + args.gamma * torch.max(model(m_next_state)).item()
 
                         # 简单说明 Bellman 方程，它是 动态规划 中的一个概念： 
                         #   一个状态的最优价值是在该状态下所有可能动作中可以获得的最大回报，其中每个动作的回报是即时奖励加上下一个状态在最优策略下的折扣后的价值。
@@ -226,6 +219,8 @@ def train_dqn(args, env) :
                     optimizer.step()        # 根据计算的梯度更新网络参数
 
                     step_counter += 1
+
+        end_time = current_millis()
         # while end
 
         # 在训练循环外，添加以下两行，用于记录每个回合结束时的步数到TensorBoard
@@ -234,7 +229,7 @@ def train_dqn(args, env) :
         # ε-贪婪策略（epsilon-greedy strategy）的强化学习技巧中的关键部分，用于平衡探索（exploration）和利用（exploitation）
         #   在强化学习中，智能体需要决定是利用当前已知的最佳策略（exploitation）来最大化短期奖励，还是探索新的动作（exploration）以获得更多信息，可能会带来更大的长期利益。
         #   ε-贪婪策略通过一个参数ε（epsilon）来控制这种平衡。ε的值是一个0到1之间的数字，表示选择随机探索的概率。
-        epsilon = max(min_epsilon, epsilon_decay * epsilon) # 衰减探索率
+        epsilon = max(args.min_epsilon, args.epsilon_decay * epsilon) # 衰减探索率
 
         checkpoint_manager.save_checkpoint(model, optimizer, episode, epsilon)
         log.info(f"第 {episode} 轮训练结束")
