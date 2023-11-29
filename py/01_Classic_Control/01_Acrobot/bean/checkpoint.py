@@ -7,7 +7,7 @@
 
 import re
 import os
-import datetime
+from datetime import datetime
 import torch
 from conf.settings import *
 from tools.utils import *
@@ -87,7 +87,7 @@ class CheckpointManager:
         
 
     def _checkpoint_name(self, episode=0) :
-        now = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        now = datetime.now().strftime("%Y%m%d%H%M%S")
         return f'{CHECKPOINT_PREFIX}_{now}_{episode}{CHECKPOINT_SUFFIX}'
 
 
