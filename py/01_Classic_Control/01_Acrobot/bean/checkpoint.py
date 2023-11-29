@@ -43,7 +43,7 @@ class CheckpointManager:
 
     def save_checkpoint(self, model, optimizer, episode, epsilon, info={}) :
         if episode % self.save_interval == 0 :
-            checkpoint_path = os.path.join(self.checkpoints_dir, self._checkpoint_name())
+            checkpoint_path = os.path.join(self.checkpoints_dir, self._checkpoint_name(episode))
             torch.save({
                 KEY_MODEL_STATE_DICT: model.state_dict(),
                 KEY_OPTIMIZER_STATE_DICT: optimizer.state_dict(),
@@ -55,15 +55,18 @@ class CheckpointManager:
 
 
     def load_last_checkpoint(self) -> Checkpoint :
-        last_idx = 0
+        last_time = ''
         checkpoint_names = [f for f in os.listdir(self.checkpoints_dir) if f.endswith(CHECKPOINT_SUFFIX)]
         for cpn in checkpoint_names :
-            idx = int(re.search(r'\d+', cpn)[0])
-            last_idx = max(last_idx, idx)
+            _datetime = re.search(r'\d+', cpn)[0]
+            last_time = max(last_time, _datetime)
 
         checkpoint = None
-        if last_idx > 0 :
-            checkpoint_path = os.path.join(self.checkpoints_dir, self._checkpoint_name(last_idx))
+        if last_time :
+            for cpn in checkpoint_names :
+                if last_time in cpn :
+                    checkpoint_path = os.path.join(self.checkpoints_dir, cpn)
+                    break
             checkpoint = self.load_checkpoint(checkpoint_path)
         return checkpoint
     
@@ -83,10 +86,9 @@ class CheckpointManager:
         return checkpoint
         
 
-    def _checkpoint_name(self, idx='') :
-        if not idx :
-            idx = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        return f'{CHECKPOINT_PREFIX}_{idx}{CHECKPOINT_SUFFIX}'
+    def _checkpoint_name(self, episode=0) :
+        now = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        return f'{CHECKPOINT_PREFIX}_{now}_{episode}{CHECKPOINT_SUFFIX}'
 
 
 
