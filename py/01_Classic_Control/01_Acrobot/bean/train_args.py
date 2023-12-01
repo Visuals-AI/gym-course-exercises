@@ -18,6 +18,12 @@ class TrainArgs :
         # ------------------------------------------
         # 深度 Q 网络（DQN）算法的关键参数和设置
         self.args = args
+        self.env = env
+
+        self.render = args.render
+        self.gamma = args.gamma
+        self.batch_size = args.batch_size
+
         self.state_size = env.observation_space.shape[0]     # Acrobot 状态空间维度
         self.action_size = env.action_space.n                # Acrobot 动作空间数量
 
