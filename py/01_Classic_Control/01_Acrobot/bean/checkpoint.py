@@ -21,6 +21,7 @@ KEY_EPSILON = 'epsilon'
 KEY_INFO = 'info'
 
 
+
 class Checkpoint :
 
     def __init__(self, model_state_dict, optimizer_state_dict, episode, epsilon, info={}) -> None:
@@ -28,7 +29,7 @@ class Checkpoint :
         self.optimizer_state_dict = optimizer_state_dict
         self.episode = episode      # 已训练的回合数（迭代数）
         self.epsilon = epsilon      # 当前探索率
-        self.info = info            # 其他信息
+        self.info = info            # 其他附加信息
 
 
 
@@ -41,7 +42,18 @@ class CheckpointManager:
         create_dirs(checkpoints_dir)
 
 
-    def save_checkpoint(self, model, optimizer, epsilon, episode, info={}) :
+    def save_checkpoint(self, model, optimizer, episode, epsilon, info={}) :
+        '''
+        保存训练检查点。
+        但是若未满足训练回合数，不会进行保存。
+        :params: model 正在训练的神经网络模型
+        :params: optimizer 用于训练神经网络的优化器
+        :params: episode 已训练回合数
+        :params: epsilon 当前探索率
+        :params: info 其他附加参数
+        :return: 是否保存了检查点
+        '''
+        is_save = False
         if episode % self.save_interval == 0 :
             checkpoint_path = os.path.join(self.checkpoints_dir, self._checkpoint_name(episode))
             torch.save({
@@ -51,10 +63,16 @@ class CheckpointManager:
                 KEY_EPSILON: epsilon,
                 KEY_INFO: info,
             }, checkpoint_path)
+            is_save = True
             log.info(f"已训练 [{episode}] 回合，自动存储检查点: {checkpoint_path}")
+        return is_save
 
 
     def load_last_checkpoint(self) -> Checkpoint :
+        '''
+        加载最后一次记录的训练检查点
+        :return: 检查点对象
+        '''
         last_time = ''
         checkpoint_names = [f for f in os.listdir(self.checkpoints_dir) if f.endswith(CHECKPOINT_SUFFIX)]
         for cpn in checkpoint_names :
@@ -72,6 +90,11 @@ class CheckpointManager:
     
 
     def load_checkpoint(self, checkpoint_path) -> Checkpoint :
+        '''
+        加载训练检查点
+        :params: checkpoint_path 检查点的记录路径
+        :return: 检查点对象
+        '''
         checkpoint = None
         if os.path.exists(checkpoint_path) :
             cp = torch.load(checkpoint_path)
@@ -82,7 +105,7 @@ class CheckpointManager:
                 epsilon = cp.get(KEY_EPSILON), 
                 info = cp.get(KEY_INFO, {})
             )
-            log.warn(f"已加载上次训练的检查点：{checkpoint_path}")
+            log.warn(f"已加载检查点：{checkpoint_path}")
         return checkpoint
         
 

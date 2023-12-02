@@ -43,7 +43,7 @@ def arguments() :
     parser.add_argument('-s', '--epsilon', dest='epsilon', type=float, default=1.0, help='探索率: 用于 epsilon-greedy 策略，它决定了智能体探索新动作的频率。值越高，智能体越倾向于尝试新的、不确定的动作而不是已知的最佳动作。这个值通常在训练初期较高，随着学习的进行逐渐降低')
     parser.add_argument('-d', '--epsilon_decay', dest='epsilon_decay', type=float, default=0.995, help='衰减率: 探索率随时间逐渐减小的速率。每经过一个回合，epsilon 将乘以这个衰减率，从而随着时间的推移减少随机探索的频率')
     parser.add_argument('-m', '--min_epsilon', dest='min_epsilon', type=float, default=0.1, help='最小探索率: 即使经过多次衰减，探索率也不会低于这个值，确保了即使在后期也有一定程度的探索')
-    parser.add_argument('-b', '--batch_size', dest='batch_size', type=int, default=32, help='从经验回放存储中一次抽取并用于训练网络的经验的数量。默认为 32，意味着每次训练时会使用 32 个经验样本')
+    parser.add_argument('-b', '--batch_size', dest='batch_size', type=int, default=32, help='从经验回放存储中一次抽取并用于训练网络的经验的样本数。默认值为 32，即每次训练时会使用 32 个经验样本')
     return parser.parse_args()
 
 
@@ -99,12 +99,12 @@ def train_dqn(args, env) :
 
     log.info("++++++++++++++++++++++++++++++++++++++++")
     log.info("开始训练 ...")
-    for episode in range(targs.cur_episode, args.episodes) :
+    for episode in range(targs.last_episode, args.episodes) :
         log.info(f"第 {episode}/{args.episodes} 回合训练开始 ...")
         train(writer, targs, episode)
 
-        targs.update_epsilon()  # 衰减探索率
-        targs.save_checkpoint(episode)
+        epsilon = targs.update_epsilon()  # 衰减探索率
+        targs.save_checkpoint(episode, epsilon)
         log.info(f"第 {episode} 回合训练结束")
     # for end
 
