@@ -41,7 +41,7 @@ class CheckpointManager:
         create_dirs(checkpoints_dir)
 
 
-    def save_checkpoint(self, model, optimizer, episode, epsilon, info={}) :
+    def save_checkpoint(self, model, optimizer, epsilon, episode, info={}) :
         if episode % self.save_interval == 0 :
             checkpoint_path = os.path.join(self.checkpoints_dir, self._checkpoint_name(episode))
             torch.save({

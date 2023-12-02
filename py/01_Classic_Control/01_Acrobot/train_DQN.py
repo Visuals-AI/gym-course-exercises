@@ -19,7 +19,6 @@ from tensorboardX import SummaryWriter
 import random
 import numpy as np
 import gymnasium as gym
-from bean.checkpoint import CheckpointManager
 from bean.train_args import TrainArgs
 from tools.utils import *
 from conf.settings import *
@@ -95,53 +94,41 @@ def main(args) :
 
 def train_dqn(args, env) :
     writer = SummaryWriter()            # TensorBoard 记录器     TODO： TensorBoard 怎么看 ？
-    cp_mgr = CheckpointManager()        # 自动管理 checkpoint 的记录
     targs = TrainArgs(args, env)        # 初始化训练参数
-    targs.load_last_checkpoint(cp_mgr)  # 加载最后一次训练的参数
+    targs.load_last_checkpoint()        # 加载最后一次训练的参数
 
-    # ------------------------------------------
-    # 训练循环
     log.info("++++++++++++++++++++++++++++++++++++++++")
     log.info("开始训练 ...")
     for episode in range(targs.cur_episode, args.episodes) :
-        log.info(f"第 {episode} 轮训练开始 ...")
+        log.info(f"第 {episode}/{args.episodes} 回合训练开始 ...")
+        train(writer, targs, episode)
 
-        state = env.reset()     # 重置环境（在Acrobot环境中，这个初始状态是一个包含了关于Acrobot状态的数组，例如两个连杆的角度和角速度。）
-        # state = (array([ 0.9996459 ,  0.02661069,  0.9958208 ,  0.09132832, -0.04581745, -0.06583451], dtype=float32), {})
-        state = np.reshape(state[0], [1, targs.state_size])  # 把状态数组转换成 1 x state_size 的数组，为了确保状态数组与神经网络的输入层匹配。
-        state = to_tensor(state, targs.device)
-        
-        # 渲染训练时的 GUI
-        if targs.render :
-            env.render()
-
-        train(writer, targs, state, episode)
-
-        # 每轮训练后对探索率进行衰减
-        # ε-贪婪策略（epsilon-greedy strategy）的强化学习技巧中的关键部分，用于平衡探索（exploration）和利用（exploitation）
-        #   在强化学习中，智能体需要决定是利用当前已知的最佳策略（exploitation）来最大化短期奖励，还是探索新的动作（exploration）以获得更多信息，可能会带来更大的长期利益。
-        #   ε-贪婪策略通过一个参数ε（epsilon）来控制这种平衡。ε的值是一个0到1之间的数字，表示选择随机探索的概率。
-        epsilon = max(args.min_epsilon, args.epsilon_decay * targs.epsilon) # 衰减探索率
-
-        # 记录训练 checkpoint
-        cp_mgr.save_checkpoint(targs.model, targs.optimizer, episode, epsilon)
-        log.info(f"第 {episode} 轮训练结束")
+        targs.update_epsilon()  # 衰减探索率
+        targs.save_checkpoint(episode)
+        log.info(f"第 {episode} 回合训练结束")
     # for end
 
-    # 关闭TensorBoard的SummaryWriter
     writer.close()
-
     env.close()
-    log.info("训练结束")
+    log.warn("已完成全部训练")
 
     torch.save(targs.model.state_dict(), ACROBOT_MODEL_PATH)
-    log.info(f"模型已保存到 {ACROBOT_MODEL_PATH}")
+    log.warn(f"训练模型已保存到: {ACROBOT_MODEL_PATH}")
     log.info("----------------------------------------")
 
 
 
-def train(writer : SummaryWriter, targs : TrainArgs, state, episode) :
+def train(writer : SummaryWriter, targs : TrainArgs, episode) :
     env = targs.env
+
+    obs = env.reset()     # 重置环境（在Acrobot环境中，这个初始状态是一个包含了关于Acrobot状态的数组，例如两个连杆的角度和角速度。）
+    # obs = (array([ 0.9996459 ,  0.02661069,  0.9958208 ,  0.09132832, -0.04581745, -0.06583451], dtype=float32), {})
+    obs = np.reshape(obs[0], [1, targs.obs_size])  # 把状态数组转换成 1 x obs_size 的数组，为了确保状态数组与神经网络的输入层匹配。
+    obs = to_tensor(obs, targs.device)
+    
+    # 渲染训练时的 GUI
+    if targs.render :
+        env.render()
     
     total_reward = 0        # 用于累计智能体从环境中获得的总奖励。在每个训练回合结束时，total_reward将反映智能体在该回合中的总体表现。奖励越高，意味着智能体的性能越好。
     step_counter = 0
@@ -158,29 +145,29 @@ def train(writer : SummaryWriter, targs : TrainArgs, state, episode) :
 
         # 智能体会根据当前经验、选择当前估计最优的动作
         else:
-            action = torch.argmax(targs.model(state)).item()
+            action = torch.argmax(targs.model(obs)).item()
 
             # action = torch.argmax(                  # 2. 神经网络模型输出每个可能动作的预期Q值。然后，使用torch.argmax选择具有最高预期Q值的动作，这代表了当前状态下的最佳动作。
             #     model(
-            #         torch.from_numpy(state).float() # 1. 将当前状态转换为PyTorch张量并传递给神经网络模型（model）
+            #         torch.from_numpy(obs).float() # 1. 将当前状态转换为PyTorch张量并传递给神经网络模型（model）
             #     )
             # ).item()                                # 3. item 从张量中提取动作值
 
-        next_state, reward, terminated, truncated, info  = env.step(action)
-        # FIXME truncated 状态有问题，需要对于调整 reward
+        next_obs, reward, terminated, truncated, info  = env.step(action)
+        # FIXME truncated 状态有问题，需要对于调整  reward
         done = terminated
         # done = terminated or truncated      # 解释详见 https://stackoverflow.com/questions/73195438/openai-gyms-env-step-what-are-the-values
         # log.debug("执行结果：")
-        # log.debug(f"  next_state 状态空间变化：{next_state}")    # 执行动作后的新状态或观察。这是智能体在下一个时间步将观察到的环境状态。
+        # log.debug(f"  next_obs 状态空间变化：{next_obs}")    # 执行动作后的新状态或观察。这是智能体在下一个时间步将观察到的环境状态。
         # log.debug(f"  reward 获得奖励情况： {reward}")           # 执行动作后获得的奖励。这是一个数值，指示执行该动作的效果好坏，是强化学习中的关键信号，作为当次动作的反馈。
         # log.debug(f"  done 当前回合是否结束: {done}")            # 可能成功也可能失败，例如在一些游戏中，达到目标或失败会结束回合。
         # log.debug(f"  info 额外信息: {info}")                   # 通常用 hash 表附带自定义的额外信息（如诊断信息、调试信息），暂时不需要用到的额外信息。
 
-        next_state = np.reshape(next_state, [1, targs.state_size])
-        next_state = to_tensor(next_state, targs.device)
+        next_obs = np.reshape(next_obs, [1, targs.obs_size])
+        next_obs = to_tensor(next_obs, targs.device)
         
-        targs.memory.append((state, action, reward, next_state, done))    # 向memory（经验回放缓冲区）添加当前 step 执行前后状态、奖励情况等
-        state = next_state      # 更新当前状态
+        targs.memory.append((obs, action, reward, next_obs, done))    # 向memory（经验回放缓冲区）添加当前 step 执行前后状态、奖励情况等
+        obs = next_obs      # 更新当前状态
         total_reward += reward  # 累计奖励
 
         if done:
@@ -197,7 +184,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, state, episode) :
         # 这种基于值的强化学习方法通过迭代这个过程，逐渐学习到一个策略，该策略可以最大化累积奖励。
         if len(targs.memory) > targs.batch_size:
             minibatch = random.sample(targs.memory, targs.batch_size)   # 从memory中随机抽取batch_size数量的样本。这种随机抽样是为了减少样本间的相关性，增强学习的稳定性和效率。
-            for m_state, m_action, m_reward, m_next_state, m_done in minibatch:
+            for m_obs, m_action, m_reward, m_next_obs, m_done in minibatch:
 
                 # target 即为目标 Q 值。 初始化为观测到的即时奖励（m_reward）
                 target = m_reward
@@ -207,17 +194,17 @@ def train(writer : SummaryWriter, targs : TrainArgs, state, episode) :
                     # 使用Bellman方程计算目标Q值。
                     # 这涉及到将下一个状态（m_next_state）输入到网络中，以估计在该状态下所有可能动作的最大Q值，
                     # 然后将这个最大Q值乘以折扣因子（gamma）并加上即时奖励（m_reward）
-                    # target = m_reward + gamma * torch.max(model(torch.from_numpy(m_next_state).float())).item()
-                    target = m_reward + targs.gamma * torch.max(targs.model(m_next_state)).item()
+                    # target = m_reward + gamma * torch.max(model(torch.from_numpy(m_next_obs).float())).item()
+                    target = m_reward + targs.gamma * torch.max(targs.model(m_next_obs)).item()
 
                     # 简单说明 Bellman 方程，它是 动态规划 中的一个概念： 
                     #   一个状态的最优价值是在该状态下所有可能动作中可以获得的最大回报，其中每个动作的回报是即时奖励加上下一个状态在最优策略下的折扣后的价值。
 
                 
-                target_f = targs.model(m_state) # 通过神经网络模型预测当前状态（m_state）下的 Q 值。
+                target_f = targs.model(m_obs) # 通过神经网络模型预测当前状态（m_state）下的 Q 值。
                 target_f[0][m_action] = target                      # 更新与执行的动作（m_action）对应的 Q 值为之前计算的目标 Q 值。
                 targs.optimizer.zero_grad()                               # 在每次网络更新前清除旧的梯度，这是PyTorch的标准做法。
-                loss = targs.criterion(target_f, targs.model(m_state))    # 计算预测 Q 值（target_f）和通过网络重新预测当前状态 Q 值之间的损失。
+                loss = targs.criterion(target_f, targs.model(m_obs))    # 计算预测 Q 值（target_f）和通过网络重新预测当前状态 Q 值之间的损失。
                 loss.backward()         # 对损失进行反向传播，计算梯度
                 targs.optimizer.step()        # 根据计算的梯度更新网络参数
 
