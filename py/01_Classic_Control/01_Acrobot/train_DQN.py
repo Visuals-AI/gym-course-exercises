@@ -38,12 +38,13 @@ def arguments() :
     parser.add_argument('-r', '--render', dest='render', action='store_true', default=False, help='渲染模式: 可以通过 GUI 观察智能体实时交互情况')
     parser.add_argument('-c', '--cpu', dest='cpu', action='store_true', default=False, help='强制使用 CPU: 默认情况下，自动优先使用 GPU 训练（除非没有 GPU）')
     parser.add_argument('-z', '--zero', dest='zero', action='store_true', default=False, help='强制从零开始重新训练（不加载上次训练的 checkpoint）')
-    parser.add_argument('-e', '--episodes', dest='episodes', type=int, default=1000, help='训练次数: 即训练过程中智能体将经历的总回合数。每个回合是一个从初始状态到终止状态的完整序列')
+    parser.add_argument('-e', '--epoches', dest='epoches', type=int, default=1000, help='训练次数: 即训练过程中智能体将经历的总回合数。每个回合是一个从初始状态到终止状态的完整序列')
     parser.add_argument('-g', '--gamma', dest='gamma', type=float, default=0.95, help='折扣因子: 用于折算未来奖励的在当前回合中的价值。它决定了未来奖励对当前决策的影响程度。值越高，智能体越重视长远利益，通常设置在 [0.9, 0.99]')
     parser.add_argument('-s', '--epsilon', dest='epsilon', type=float, default=1.0, help='探索率: 用于 epsilon-greedy 策略，它决定了智能体探索新动作的频率。值越高，智能体越倾向于尝试新的、不确定的动作而不是已知的最佳动作。这个值通常在训练初期较高，随着学习的进行逐渐降低')
     parser.add_argument('-d', '--epsilon_decay', dest='epsilon_decay', type=float, default=0.995, help='衰减率: 探索率随时间逐渐减小的速率。每经过一个回合，epsilon 将乘以这个衰减率，从而随着时间的推移减少随机探索的频率')
     parser.add_argument('-m', '--min_epsilon', dest='min_epsilon', type=float, default=0.1, help='最小探索率: 即使经过多次衰减，探索率也不会低于这个值，确保了即使在后期也有一定程度的探索')
     parser.add_argument('-b', '--batch_size', dest='batch_size', type=int, default=32, help='从经验回放存储中一次抽取并用于训练网络的经验的样本数。默认值为 32，即每次训练时会使用 32 个经验样本')
+    parser.add_argument('-t', '--tensor_logs', dest='tensor_logs', type=str, default="runs", help='TensorBoardX 日志目录')
     return parser.parse_args()
 
 
@@ -99,19 +100,19 @@ def train_dqn(args, env) :
     :params: env 当前交互的环境变量，如 Acrobot
     :return: None
     '''
-    writer = SummaryWriter()            # 训练过程记录器，可用 TensorBoard 查看
-    targs = TrainArgs(args, env)        # 初始化训练参数
-    targs.load_last_checkpoint()        # 加载最后一次训练的状态和参数
+    writer = SummaryWriter(logdir=args.tensor_logs) # 训练过程记录器，可用 TensorBoard 查看
+    targs = TrainArgs(args, env)                    # 初始化训练参数
+    targs.load_last_checkpoint()                    # 加载最后一次训练的状态和参数
 
     log.info("++++++++++++++++++++++++++++++++++++++++")
     log.info("开始训练 ...")
-    for episode in range(targs.last_episode, args.episodes) :
-        log.info(f"第 {episode}/{args.episodes} 回合训练开始 ...")
-        train(writer, targs, episode)
+    for epoch in range(targs.last_epoch, args.epoches) :
+        log.info(f"第 {epoch}/{args.epoches} 回合训练开始 ...")
+        train(writer, targs, epoch)
 
         epsilon = targs.update_epsilon()        # 衰减探索率
-        targs.save_checkpoint(episode, epsilon) # 保存当次训练的状态和参数（用于断点训练）
-        log.info(f"第 {episode} 回合训练结束")
+        targs.save_checkpoint(epoch, epsilon)   # 保存当次训练的状态和参数（用于断点训练）
+        log.info(f"第 {epoch} 回合训练结束")
 
     writer.close()
     env.close()
@@ -123,7 +124,7 @@ def train_dqn(args, env) :
 
 
 
-def train(writer : SummaryWriter, targs : TrainArgs, episode) :
+def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     '''
     使用深度 Q 网络（DQN）算法进行训练。
     :params: writer 训练过程记录器，可用 TensorBoard 查看
@@ -141,11 +142,10 @@ def train(writer : SummaryWriter, targs : TrainArgs, episode) :
         env.render()
     
     total_reward = 0            # 累计智能体从环境中获得的总奖励。在每个训练回合结束时，total_reward 将反映智能体在该回合中的总体表现。奖励越高，意味着智能体的性能越好。
+    total_loss = 0              # 累计损失率。反映了预测 Q 值和目标 Q 值之间的差异
     step_counter = 0            # 训练步数计数器
     bgn_time = current_millis() # 训练时长计数器
 
-    # 用于记录训练过程参数到 TensorBoard
-    episode_summary = {'Total Reward': total_reward, 'Epsilon': targs.cur_epsilon}
     while True:
 
         # epsilon-greedy 策略：
@@ -159,7 +159,6 @@ def train(writer : SummaryWriter, targs : TrainArgs, episode) :
                 targs.model(obs)        # 1. 将当前状态 obs （张量）传递给神经网络模型（model），神经网络模型输出每个可能动作的预期Q值
             ).item()                    # 3. 从张量中提取动作值
 
-
         # 旧版本的 env.step(action) 返回值只有 4 个参数，没有 truncated
         # 但是 truncated 和 info 暂时没用，详见 https://stackoverflow.com/questions/73195438/openai-gyms-env-step-what-are-the-values
         next_obs, reward, terminated, truncated, info  = env.step(action)
@@ -168,10 +167,8 @@ def train(writer : SummaryWriter, targs : TrainArgs, episode) :
         next_obs = to_tensor(next_obs, targs.device)
         done = terminated
         step_counter += 1
-        now = current_millis()
-
-        act_desc = "向左" if action == 0 else ("向右" if action == 2 else "不动")
-        log.debug(f"[第 {episode} 回合] 步数={step_counter}（{act_desc}）, 耗时={now - bgn_time}ms")
+        
+        # log.debug(f"[第 {epoch} 回合] 步数={step_counter}")
         # log.debug("执行结果：")
         # log.debug(f"  状态空间变化：{next_obs}")      # 执行动作后的新状态或观察。这是智能体在下一个时间步将观察到的环境状态。
         # log.debug(f"  累计获得奖励：{reward}")        # 执行动作后获得的奖励。这是一个数值，指示执行该动作的效果好坏，是强化学习中的关键信号，作为当次动作的反馈。
@@ -179,18 +176,12 @@ def train(writer : SummaryWriter, targs : TrainArgs, episode) :
         # log.debug(f"  回合是否中止: {truncated}")     # 回合因为某些约束调节提前中止，如步数限制等。
         # log.debug(f"  其他额外信息: {info}")          # 通常用 hash 表附带自定义的额外信息（如诊断信息、调试信息），暂时不需要用到的额外信息。
         
-
         targs.memory.append((obs, action, reward, next_obs, done))    # 向memory（经验回放缓冲区）添加当前 step 执行前后状态、奖励情况等
-        obs = next_obs      # 更新当前状态
+        obs = next_obs          # 更新当前状态
         total_reward += reward  # 累计奖励
 
-        
+        writer.add_scalar('Training/Step Reward', reward, step_counter)                # 记录每一步的奖励
         if done:
-            log.info(f"[第 {episode} 回合] 完成，累计步数={step_counter} 步, 耗时={now - bgn_time}ms, 奖励={total_reward}, 探索率={targs.cur_epsilon}")
-
-            # 记录本回合的训练参数到 TensorBoard
-            episode_summary['Total Reward'] = total_reward
-            writer.add_scalars('Training', episode_summary, episode)
             break
 
         # 确保只有当经验回放缓冲区（memory）中的样本数量超过批处理大小（batch_size）时，才进行学习过程。
@@ -211,25 +202,30 @@ def train(writer : SummaryWriter, targs : TrainArgs, episode) :
                     # 然后将这个最大Q值乘以折扣因子（gamma）并加上即时奖励（m_reward）
                     # target = m_reward + gamma * torch.max(model(torch.from_numpy(m_next_obs).float())).item()
                     target = m_reward + targs.gamma * torch.max(targs.model(m_next_obs)).item()
-
                     # 简单说明 Bellman 方程，它是 动态规划 中的一个概念： 
                     #   一个状态的最优价值是在该状态下所有可能动作中可以获得的最大回报，其中每个动作的回报是即时奖励加上下一个状态在最优策略下的折扣后的价值。
 
-                
                 target_f = targs.model(m_obs) # 通过神经网络模型预测当前状态（m_state）下的 Q 值。
                 target_f[0][m_action] = target                      # 更新与执行的动作（m_action）对应的 Q 值为之前计算的目标 Q 值。
                 targs.optimizer.zero_grad()                               # 在每次网络更新前清除旧的梯度，这是PyTorch的标准做法。
                 loss = targs.criterion(target_f, targs.model(m_obs))    # 计算预测 Q 值（target_f）和通过网络重新预测当前状态 Q 值之间的损失。
                 loss.backward()         # 对损失进行反向传播，计算梯度
+                total_loss += loss.item()
                 targs.optimizer.step()        # 根据计算的梯度更新网络参数
-
-                
-
-    end_time = current_millis()
     # while end
 
-    # 在训练循环外，添加以下两行，用于记录每个回合结束时的步数到TensorBoard
-    writer.add_scalar('Training/Steps per Episode', step_counter, episode)
+    end_time = current_millis()
+    finish_time = end_time - bgn_time
+    log.info(f"[第 {epoch} 回合] 完成，累计步数={step_counter} 步, 耗时={finish_time}ms, 奖励={total_reward}, 探索率={targs.cur_epsilon}")
+
+    # 记录每个回合结束时的训练参数到 TensorBoard
+    writer.add_scalar('Training/Epsilon', targs.cur_epsilon, epoch)                     # 记录每个回合的探索率
+    writer.add_scalar('Training/Steps per Epoch', step_counter, epoch)                  # 记录每个回合的步数
+    writer.add_scalar('Training/Finish Time per Epoch', finish_time, epoch)             # 记录每个回合的完成时间
+    writer.add_scalar('Training/Total Reward per Epoch', total_reward, epoch)           # 记录每个回合的总奖励
+    writer.add_scalar('Training/Loss per Epoch', total_loss / step_counter, epoch)      # 记录每个回合的平均损失
+    writer.add_histogram('Training/Q Values Distribution', targs.model(obs), epoch)     # 记录每个回合 Q 值的分布（了解模型对每个状态-动作对的估计）
+    writer.add_scalar('Training/Learning Rate', targs.optimizer.param_groups[0]['lr'], epoch)   # 记录每个回合的学习率和其他超参数
     return
 
 

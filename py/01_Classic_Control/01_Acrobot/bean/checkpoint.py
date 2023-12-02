@@ -16,7 +16,7 @@ from color_log.clog import log
 
 KEY_MODEL_STATE_DICT = 'model_state_dict'
 KEY_OPTIMIZER_STATE_DICT = 'optimizer_state_dict'
-KEY_EPISODE = 'episode'
+KEY_EPOCH = 'epoch'
 KEY_EPSILON = 'epsilon'
 KEY_INFO = 'info'
 
@@ -24,10 +24,10 @@ KEY_INFO = 'info'
 
 class Checkpoint :
 
-    def __init__(self, model_state_dict, optimizer_state_dict, episode, epsilon, info={}) -> None:
+    def __init__(self, model_state_dict, optimizer_state_dict, epoch, epsilon, info={}) -> None:
         self.model_state_dict = model_state_dict
         self.optimizer_state_dict = optimizer_state_dict
-        self.episode = episode      # 已训练的回合数（迭代数）
+        self.epoch = epoch      # 已训练的回合数（迭代数）
         self.epsilon = epsilon      # 当前探索率
         self.info = info            # 其他附加信息
 
@@ -48,29 +48,29 @@ class CheckpointManager:
         create_dirs(checkpoints_dir)
 
 
-    def save_checkpoint(self, model, optimizer, episode, epsilon, info={}) :
+    def save_checkpoint(self, model, optimizer, epoch, epsilon, info={}) :
         '''
         保存训练检查点。
         但是若未满足训练回合数，不会进行保存。
         :params: model 正在训练的神经网络模型
         :params: optimizer 用于训练神经网络的优化器
-        :params: episode 已训练回合数
+        :params: epoch 已训练回合数
         :params: epsilon 当前探索率
         :params: info 其他附加参数
         :return: 是否保存了检查点
         '''
         is_save = False
-        if episode % self.save_interval == 0 :
-            checkpoint_path = os.path.join(self.checkpoints_dir, self._checkpoint_name(episode))
+        if epoch % self.save_interval == 0 :
+            checkpoint_path = os.path.join(self.checkpoints_dir, self._checkpoint_name(epoch))
             torch.save({
                 KEY_MODEL_STATE_DICT: model.state_dict(),
                 KEY_OPTIMIZER_STATE_DICT: optimizer.state_dict(),
-                KEY_EPISODE: episode,
+                KEY_EPOCH: epoch,
                 KEY_EPSILON: epsilon,
                 KEY_INFO: info,
             }, checkpoint_path)
             is_save = True
-            log.info(f"已训练 [{episode}] 回合，自动存储检查点: {checkpoint_path}")
+            log.info(f"已训练 [{epoch}] 回合，自动存储检查点: {checkpoint_path}")
         return is_save
 
 
@@ -108,7 +108,7 @@ class CheckpointManager:
             checkpoint = Checkpoint(
                 model_state_dict = cp.get(KEY_MODEL_STATE_DICT), 
                 optimizer_state_dict = cp.get(KEY_OPTIMIZER_STATE_DICT), 
-                episode = cp.get(KEY_EPISODE), 
+                epoch = cp.get(KEY_EPOCH), 
                 epsilon = cp.get(KEY_EPSILON), 
                 info = cp.get(KEY_INFO, {})
             )
@@ -116,12 +116,12 @@ class CheckpointManager:
         return checkpoint
         
 
-    def _checkpoint_name(self, episode=0) :
+    def _checkpoint_name(self, epoch=0) :
         '''
         构造检查点名称
-        :params: episode 已训练回合数
+        :params: epoch 已训练回合数
         :return: 检查点名称
         '''
         now = datetime.now().strftime("%Y%m%d%H%M%S")
-        return f'{CHECKPOINT_PREFIX}_{now}_{episode}{CHECKPOINT_SUFFIX}'
+        return f'{CHECKPOINT_PREFIX}_{now}_{epoch}{CHECKPOINT_SUFFIX}'
 

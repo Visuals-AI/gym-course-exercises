@@ -46,7 +46,7 @@ class TrainArgs :
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)  # 用于训练神经网络的优化器。这里使用的是Adam优化器，一个流行的梯度下降变种，lr=0.001设置了学习率为0.001。
         self.criterion = nn.MSELoss()                                   # 用于训练过程中的损失函数。这里使用的是均方误差损失（MSE Loss），它是评估神经网络预测值与实际值差异的常用方法。
 
-        self.last_episode = 0                       # 最后一次记录的训练回合数
+        self.last_epoch = 0                         # 最后一次记录的训练回合数
         self.zero = self.args.zero                  # 强制从第 0 回合开始训练
         self.cur_epsilon = args.epsilon             # 当前探索率
         self.epsilon_decay = args.epsilon_decay     # 探索率的衰减率
@@ -67,7 +67,7 @@ class TrainArgs :
         
         last_cp = self.cp_mgr.load_last_checkpoint()
         if last_cp :
-            self.last_episode = last_cp.episode + 1
+            self.last_epoch = last_cp.epoch + 1
             self.cur_epsilon = last_cp.epsilon
             self.info = last_cp.info
             self.model.load_state_dict(last_cp.model_state_dict)
@@ -76,11 +76,11 @@ class TrainArgs :
     
 
 
-    def save_checkpoint(self, episode, epsilon, info={}) :
+    def save_checkpoint(self, epoch, epsilon, info={}) :
         '''
         保存训练检查点。
         但是若未满足训练回合数，不会进行保存。
-        :params: episode 已训练回合数
+        :params: epoch 已训练回合数
         :params: epsilon 当前探索率
         :params: info 其他附加参数
         :return: 是否保存了检查点
@@ -88,7 +88,7 @@ class TrainArgs :
         return self.cp_mgr.save_checkpoint(
             self.model, 
             self.optimizer, 
-            episode, 
+            epoch, 
             epsilon, 
             info
         )
