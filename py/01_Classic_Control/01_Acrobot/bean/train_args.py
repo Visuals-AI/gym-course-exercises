@@ -19,7 +19,7 @@ class TrainArgs :
                  checkpoints_dir=CHECKPOINTS_DIR, 
                  save_interval=SAVE_CHECKPOINT_INTERVAL) -> None:
         '''
-        初始化深度 Q 网络（DQN）算法的关键参数和设置。
+        初始化深度 Q 网络（DQN）算法的环境和模型关键参数。
         :params: args 从命令行传入的训练控制参数
         :params: env 当前交互的环境变量，如 Acrobot
         :params: checkpoints_dir 存储检查点的目录
@@ -48,7 +48,7 @@ class TrainArgs :
 
         self.last_episode = 0                       # 最后一次记录的训练回合数
         self.zero = self.args.zero                  # 强制从第 0 回合开始训练
-        self.last_epsilon = args.epsilon            # 最后一次记录的探索率
+        self.cur_epsilon = args.epsilon             # 当前探索率
         self.epsilon_decay = args.epsilon_decay     # 探索率的衰减率
         self.min_epsilon = args.min_epsilon         # 最小探索率
         self.gamma = args.gamma                     # 折扣因子
@@ -68,7 +68,7 @@ class TrainArgs :
         last_cp = self.cp_mgr.load_last_checkpoint()
         if last_cp :
             self.last_episode = last_cp.episode + 1
-            self.last_epsilon = last_cp.epsilon
+            self.cur_epsilon = last_cp.epsilon
             self.info = last_cp.info
             self.model.load_state_dict(last_cp.model_state_dict)
             self.optimizer.load_state_dict(last_cp.optimizer_state_dict)
@@ -106,6 +106,7 @@ class TrainArgs :
         '''
         epsilon = max(
             self.min_epsilon, 
-            self.last_epsilon * self.epsilon_decay
+            self.cur_epsilon * self.epsilon_decay
         )
+        self.cur_epsilon = epsilon
         return epsilon

@@ -11,12 +11,21 @@ import numpy as np
 
 
 def create_dirs(path):
+    '''
+    创建目录（支持多层）
+    :params: path 目录路径
+    :return: None
+    '''
     if not os.path.exists(path):
         os.makedirs(path)
 
 
 
 def current_millis() :
+    '''
+    当前时间戳（毫秒级）
+    :return: 当前时间戳（毫秒级）
+    '''
     return int(time.time() * 1000)
 
 

@@ -93,9 +93,15 @@ def main(args) :
 
 
 def train_dqn(args, env) :
-    writer = SummaryWriter()            # TensorBoard 记录器     TODO： TensorBoard 怎么看 ？
+    '''
+    使用深度 Q 网络（DQN）算法进行训练。
+    :params: args 从命令行传入的训练控制参数
+    :params: env 当前交互的环境变量，如 Acrobot
+    :return: None
+    '''
+    writer = SummaryWriter()            # 训练过程记录器，可用 TensorBoard 查看
     targs = TrainArgs(args, env)        # 初始化训练参数
-    targs.load_last_checkpoint()        # 加载最后一次训练的参数
+    targs.load_last_checkpoint()        # 加载最后一次训练的状态和参数
 
     log.info("++++++++++++++++++++++++++++++++++++++++")
     log.info("开始训练 ...")
@@ -103,77 +109,86 @@ def train_dqn(args, env) :
         log.info(f"第 {episode}/{args.episodes} 回合训练开始 ...")
         train(writer, targs, episode)
 
-        epsilon = targs.update_epsilon()  # 衰减探索率
-        targs.save_checkpoint(episode, epsilon)
+        epsilon = targs.update_epsilon()        # 衰减探索率
+        targs.save_checkpoint(episode, epsilon) # 保存当次训练的状态和参数（用于断点训练）
         log.info(f"第 {episode} 回合训练结束")
-    # for end
 
     writer.close()
     env.close()
     log.warn("已完成全部训练")
 
-    torch.save(targs.model.state_dict(), ACROBOT_MODEL_PATH)
+    torch.save(targs.model.state_dict(), ACROBOT_MODEL_PATH)    # 保存训练好的模型
     log.warn(f"训练模型已保存到: {ACROBOT_MODEL_PATH}")
     log.info("----------------------------------------")
 
 
 
 def train(writer : SummaryWriter, targs : TrainArgs, episode) :
+    '''
+    使用深度 Q 网络（DQN）算法进行训练。
+    :params: writer 训练过程记录器，可用 TensorBoard 查看
+    :params: targs 用于训练的环境和模型关键参数
+    :return: None
+    '''
     env = targs.env
-
-    obs = env.reset()     # 重置环境（在Acrobot环境中，这个初始状态是一个包含了关于Acrobot状态的数组，例如两个连杆的角度和角速度。）
-    # obs = (array([ 0.9996459 ,  0.02661069,  0.9958208 ,  0.09132832, -0.04581745, -0.06583451], dtype=float32), {})
-    obs = np.reshape(obs[0], [1, targs.obs_size])  # 把状态数组转换成 1 x obs_size 的数组，为了确保状态数组与神经网络的输入层匹配。
-    obs = to_tensor(obs, targs.device)
+    raw_obs = env.reset()                               # 重置环境（在Acrobot环境中，这个初始状态是一个包含了关于Acrobot状态的数组，例如两个连杆的角度和角速度。）
+                                                        # raw_obs 的第 0 个元素才是状态数组 (array([ 0.9996459 ,  0.02661069,  0.9958208 ,  0.09132832, -0.04581745, -0.06583451], dtype=float32), {})
+    obs = np.reshape(raw_obs[0], [1, targs.obs_size])   # 把状态数组转换成 1 x obs_size 的数组，目的是确保状态数组与神经网络的输入层匹配。
+    obs = to_tensor(obs, targs.device)                  # 把状态数组送入神经网络所在的设备
     
-    # 渲染训练时的 GUI
+    # 渲染训练时的 GUI （必须在 reset 方法后执行）
     if targs.render :
         env.render()
     
-    total_reward = 0        # 用于累计智能体从环境中获得的总奖励。在每个训练回合结束时，total_reward将反映智能体在该回合中的总体表现。奖励越高，意味着智能体的性能越好。
-    step_counter = 0
+    total_reward = 0            # 累计智能体从环境中获得的总奖励。在每个训练回合结束时，total_reward 将反映智能体在该回合中的总体表现。奖励越高，意味着智能体的性能越好。
+    step_counter = 0            # 训练步数计数器
+    bgn_time = current_millis() # 训练时长计数器
 
-    # 添加以下两行，用于记录训练过程信息到TensorBoard
-    episode_summary = {'Total Reward': 0, 'Epsilon': targs.epsilon}
-    bgn_time = current_millis()
+    # 用于记录训练过程参数到 TensorBoard
+    episode_summary = {'Total Reward': total_reward, 'Epsilon': targs.cur_epsilon}
     while True:
 
-        # epsilon-greedy策略：
-        # 即智能体在选择动作时，有一定概率随机探索环境，而其余时间则根据已学习的策略选择最佳动作
-        if np.random.rand() <= targs.epsilon:
+        # epsilon-greedy 策略：
+        # 智能体在选择动作时，有一定概率随机探索环境，而其余时间则根据已学习的策略选择最佳动作
+        if np.random.rand() <= targs.cur_epsilon:
             action = env.action_space.sample()  # 随机选择一个动作
 
-        # 智能体会根据当前经验、选择当前估计最优的动作
-        else:
-            action = torch.argmax(targs.model(obs)).item()
+        # 智能体根据当前经验、选择当前估计最优的动作
+        else :
+            action = torch.argmax(      # 2. 使用torch.argmax选择具有最高预期Q值的动作（当前状态下的最佳动作）
+                targs.model(obs)        # 1. 将当前状态 obs （张量）传递给神经网络模型（model），神经网络模型输出每个可能动作的预期Q值
+            ).item()                    # 3. 从张量中提取动作值
 
-            # action = torch.argmax(                  # 2. 神经网络模型输出每个可能动作的预期Q值。然后，使用torch.argmax选择具有最高预期Q值的动作，这代表了当前状态下的最佳动作。
-            #     model(
-            #         torch.from_numpy(obs).float() # 1. 将当前状态转换为PyTorch张量并传递给神经网络模型（model）
-            #     )
-            # ).item()                                # 3. item 从张量中提取动作值
 
+        # 旧版本的 env.step(action) 返回值只有 4 个参数，没有 truncated
+        # 但是 truncated 和 info 暂时没用，详见 https://stackoverflow.com/questions/73195438/openai-gyms-env-step-what-are-the-values
         next_obs, reward, terminated, truncated, info  = env.step(action)
-        # FIXME truncated 状态有问题，需要对于调整  reward
-        done = terminated
-        # done = terminated or truncated      # 解释详见 https://stackoverflow.com/questions/73195438/openai-gyms-env-step-what-are-the-values
-        # log.debug("执行结果：")
-        # log.debug(f"  next_obs 状态空间变化：{next_obs}")    # 执行动作后的新状态或观察。这是智能体在下一个时间步将观察到的环境状态。
-        # log.debug(f"  reward 获得奖励情况： {reward}")           # 执行动作后获得的奖励。这是一个数值，指示执行该动作的效果好坏，是强化学习中的关键信号，作为当次动作的反馈。
-        # log.debug(f"  done 当前回合是否结束: {done}")            # 可能成功也可能失败，例如在一些游戏中，达到目标或失败会结束回合。
-        # log.debug(f"  info 额外信息: {info}")                   # 通常用 hash 表附带自定义的额外信息（如诊断信息、调试信息），暂时不需要用到的额外信息。
 
         next_obs = np.reshape(next_obs, [1, targs.obs_size])
         next_obs = to_tensor(next_obs, targs.device)
+        done = terminated
+        step_counter += 1
+        now = current_millis()
+
+        act_desc = "向左" if action == 0 else ("向右" if action == 2 else "不动")
+        log.debug(f"[第 {episode} 回合] 步数={step_counter}（{act_desc}）, 耗时={now - bgn_time}ms")
+        # log.debug("执行结果：")
+        # log.debug(f"  状态空间变化：{next_obs}")      # 执行动作后的新状态或观察。这是智能体在下一个时间步将观察到的环境状态。
+        # log.debug(f"  累计获得奖励：{reward}")        # 执行动作后获得的奖励。这是一个数值，指示执行该动作的效果好坏，是强化学习中的关键信号，作为当次动作的反馈。
+        # log.debug(f"  回合是否结束: {terminated}")    # 可能成功也可能失败，例如在一些游戏中，达到目标或失败会结束回合。
+        # log.debug(f"  回合是否中止: {truncated}")     # 回合因为某些约束调节提前中止，如步数限制等。
+        # log.debug(f"  其他额外信息: {info}")          # 通常用 hash 表附带自定义的额外信息（如诊断信息、调试信息），暂时不需要用到的额外信息。
         
+
         targs.memory.append((obs, action, reward, next_obs, done))    # 向memory（经验回放缓冲区）添加当前 step 执行前后状态、奖励情况等
         obs = next_obs      # 更新当前状态
         total_reward += reward  # 累计奖励
 
+        
         if done:
-            log.debug(f"Episode: {episode+1}, Total reward: {total_reward}, Epsilon: {targs.epsilon}")
+            log.info(f"[第 {episode} 回合] 完成，累计步数={step_counter} 步, 耗时={now - bgn_time}ms, 奖励={total_reward}, 探索率={targs.cur_epsilon}")
 
-            # 记录本回合的总奖励到TensorBoard
+            # 记录本回合的训练参数到 TensorBoard
             episode_summary['Total Reward'] = total_reward
             writer.add_scalars('Training', episode_summary, episode)
             break
@@ -208,7 +223,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, episode) :
                 loss.backward()         # 对损失进行反向传播，计算梯度
                 targs.optimizer.step()        # 根据计算的梯度更新网络参数
 
-                step_counter += 1
+                
 
     end_time = current_millis()
     # while end

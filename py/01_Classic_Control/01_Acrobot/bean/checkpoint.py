@@ -37,6 +37,12 @@ class CheckpointManager:
 
     def __init__(self, checkpoints_dir=CHECKPOINTS_DIR, 
                  save_interval=SAVE_CHECKPOINT_INTERVAL) :
+        '''
+        初始化检查点管理器
+        :params: checkpoints_dir 存储检查点的目录
+        :params: save_interval 存储检查点的回合数间隔
+        :return: CheckpointManager
+        '''
         self.checkpoints_dir = checkpoints_dir
         self.save_interval = save_interval
         create_dirs(checkpoints_dir)
@@ -81,6 +87,7 @@ class CheckpointManager:
 
         checkpoint = None
         if last_time :
+            checkpoint_path = ''
             for cpn in checkpoint_names :
                 if last_time in cpn :
                     checkpoint_path = os.path.join(self.checkpoints_dir, cpn)
@@ -110,8 +117,11 @@ class CheckpointManager:
         
 
     def _checkpoint_name(self, episode=0) :
+        '''
+        构造检查点名称
+        :params: episode 已训练回合数
+        :return: 检查点名称
+        '''
         now = datetime.now().strftime("%Y%m%d%H%M%S")
         return f'{CHECKPOINT_PREFIX}_{now}_{episode}{CHECKPOINT_SUFFIX}'
-
-
 
