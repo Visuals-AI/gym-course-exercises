@@ -112,7 +112,6 @@ def train_dqn(args, env) :
 
         epsilon = targs.update_epsilon()        # 衰减探索率
         targs.save_checkpoint(epoch, epsilon)   # 保存当次训练的状态和参数（用于断点训练）
-        log.info(f"第 {epoch} 回合训练结束")
 
     writer.close()
     env.close()
@@ -180,7 +179,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         obs = next_obs          # 更新当前状态
         total_reward += reward  # 累计奖励
 
-        writer.add_scalar('Training/Step Reward', reward, step_counter)                # 记录每一步的奖励
+        writer.add_scalar('Epoch/每步奖励', reward, step_counter)
         if done:
             break
 
@@ -215,17 +214,17 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     # while end
 
     end_time = current_millis()
-    finish_time = end_time - bgn_time
-    log.info(f"[第 {epoch} 回合] 完成，累计步数={step_counter} 步, 耗时={finish_time}ms, 奖励={total_reward}, 探索率={targs.cur_epsilon}")
+    finish_time = int((end_time - bgn_time) / 1000)
+    log.info(f"第 {epoch}/{targs.epoches} 回合 完成，累计步数={step_counter} 步, 耗时={finish_time}s, 奖励={total_reward}, 探索率={targs.cur_epsilon}")
 
     # 记录每个回合结束时的训练参数到 TensorBoard
-    writer.add_scalar('Training/Epsilon', targs.cur_epsilon, epoch)                     # 记录每个回合的探索率
-    writer.add_scalar('Training/Steps per Epoch', step_counter, epoch)                  # 记录每个回合的步数
-    writer.add_scalar('Training/Finish Time per Epoch', finish_time, epoch)             # 记录每个回合的完成时间
-    writer.add_scalar('Training/Total Reward per Epoch', total_reward, epoch)           # 记录每个回合的总奖励
-    writer.add_scalar('Training/Loss per Epoch', total_loss / step_counter, epoch)      # 记录每个回合的平均损失
-    writer.add_histogram('Training/Q Values Distribution', targs.model(obs), epoch)     # 记录每个回合 Q 值的分布（了解模型对每个状态-动作对的估计）
-    writer.add_scalar('Training/Learning Rate', targs.optimizer.param_groups[0]['lr'], epoch)   # 记录每个回合的学习率和其他超参数
+    writer.add_scalar('Training/每回合探索率', targs.cur_epsilon, epoch)
+    writer.add_scalar('Training/每回合步数', step_counter, epoch)
+    writer.add_scalar('Training/每回合完成时间', finish_time, epoch)
+    writer.add_scalar('Training/每回合总奖励', total_reward, epoch)
+    writer.add_scalar('Training/每回合平均损失', total_loss / step_counter, epoch)
+    writer.add_scalar('Training/每回合学习率', targs.optimizer.param_groups[0]['lr'], epoch)
+    writer.add_histogram('Training/每回合 Q 值分布', targs.model(obs), epoch)     # 用于了解模型对每个状态-动作对的估计
     return
 
 

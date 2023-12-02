@@ -46,6 +46,7 @@ class TrainArgs :
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)  # 用于训练神经网络的优化器。这里使用的是Adam优化器，一个流行的梯度下降变种，lr=0.001设置了学习率为0.001。
         self.criterion = nn.MSELoss()                                   # 用于训练过程中的损失函数。这里使用的是均方误差损失（MSE Loss），它是评估神经网络预测值与实际值差异的常用方法。
 
+        self.epoches = args.epoches                 # 总训练回合数
         self.last_epoch = 0                         # 最后一次记录的训练回合数
         self.zero = self.args.zero                  # 强制从第 0 回合开始训练
         self.cur_epsilon = args.epsilon             # 当前探索率
