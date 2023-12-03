@@ -15,11 +15,13 @@
 import argparse
 import torch
 import torch.cuda
+import torch.nn.functional as F
 from tensorboardX import SummaryWriter
 import random
 import numpy as np
 import gymnasium as gym
 from bean.train_args import TrainArgs
+from bean.transition import Transition
 from tools.utils import *
 from conf.settings import *
 from color_log.clog import log
@@ -110,6 +112,7 @@ def train_dqn(args, env) :
         log.info(f"第 {epoch}/{args.epoches} 回合训练开始 ...")
         train(writer, targs, epoch)
 
+        targs.update_target_model(epoch)        # 更新目标模型
         epsilon = targs.update_epsilon()        # 衰减探索率
         targs.save_checkpoint(epoch, epsilon)   # 保存当次训练的状态和参数（用于断点训练）
 
@@ -150,7 +153,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         action = select_next_action(targs, obs)
 
         # 执行下一步动作
-        next_obs, reward, done = exec_next_action(targs, action)
+        next_obs, reward, done = exec_next_action(targs, action, epoch, step_counter)
         
         # 向【经验回放存储】添加当前 step 执行前后状态、奖励情况等
         targs.memory.append((obs, action, reward, next_obs, done))
@@ -203,7 +206,7 @@ def select_next_action(targs: TrainArgs, obs) :
 
 
 
-def exec_next_action(targs: TrainArgs, action) :
+def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
     '''
     执行下一步动作
     :params: targs 用于训练的环境和模型关键参数
@@ -227,7 +230,6 @@ def exec_next_action(targs: TrainArgs, action) :
     return (next_obs, reward, done)
 
 
-
 def dqn(targs: TrainArgs, total_loss) :
     '''
     进行 DQN 学习（基于 Q 值的强化学习方法）：
@@ -245,29 +247,62 @@ def dqn(targs: TrainArgs, total_loss) :
     
     # 从【经验回放存储】中随机抽取 batch_size 个样本数
     # 这种随机抽样是为了减少样本间的相关性，增强学习的稳定性和效率
-    samples = random.sample(targs.memory, targs.batch_size)
-    
+    transitions = random.sample(targs.memory, targs.batch_size)
+
+    # 解压 transitions 到单独的批次
+    batch = Transition(*zip(*transitions))
+
+    # 将每个样本的组成部分转换为独立的批次
+    # 将 (obs, action, reward, next_obs, done) 分解为单独的批次
+    # 确保将 NumPy 整数转换为 PyTorch 张量
+    obs_batch = torch.cat([torch.tensor(s, dtype=torch.float32) for s in batch.obs])
+    action_batch = torch.cat([torch.tensor([a], dtype=torch.long) for a in batch.action])
+    reward_batch = torch.cat([torch.tensor([r], dtype=torch.float32) for r in batch.reward])
+    next_obs_batch = torch.cat([torch.tensor(s, dtype=torch.float32) for s in batch.next_obs])
+    done_batch = torch.cat([torch.tensor([d], dtype=torch.float32) for d in batch.done])
+
+    # 计算当前状态下的 Q 值
+    current_q_values = targs.model(obs_batch).gather(1, action_batch.unsqueeze(1))
+
+    # 计算下一个状态的最大预测 Q 值
+    next_q_values = targs.target_model(next_obs_batch).detach().max(1)[0]
+    expected_q_values = reward_batch + (targs.gamma * next_q_values * (1 - done_batch))
+
+    # 计算 Huber 损失
+    loss = F.smooth_l1_loss(current_q_values, expected_q_values.unsqueeze(1))
+
+    # 优化模型
+    targs.optimizer.zero_grad()
+    loss.backward()
+    for param in targs.model.parameters():
+        param.grad.data.clamp_(-1, 1)
+    targs.optimizer.step()
+
+    # 累积损失更新
+    total_loss += loss.item()
+
     # 注意取出的参数顺序要和存储时的顺序一致
-    for obs, action, reward, next_obs, done in samples:
-        q_target = reward   # 目标 Q 值：初始化为观测到的即时奖励
+    # for obs, action, reward, next_obs, done in transitions :
+    #     q_target = reward   # 目标 Q 值：初始化为观测到的即时奖励
 
-        # 如果回合尚未结束，则计算目标Q值。
-        if not done:
-            # 使用Bellman方程计算目标Q值。
-            # 这涉及到将下一个状态（m_next_state）输入到网络中，以估计在该状态下所有可能动作的最大Q值，
-            # 然后将这个最大Q值乘以折扣因子（gamma）并加上即时奖励（reward）
-            # q_target = reward + gamma * torch.max(model(torch.from_numpy(next_obs).float())).item()
-            # 简单说明 Bellman 方程，它是 动态规划 中的一个概念： 
-            #   一个状态的最优价值是在该状态下所有可能动作中可以获得的最大回报，其中每个动作的回报是即时奖励加上下一个状态在最优策略下的折扣后的价值。
-            q_target = reward + targs.gamma * torch.max(targs.model(next_obs)).item()
+    #     # 如果回合尚未结束，则计算目标 Q 值。
+    #     if not done:
+    #         # 使用Bellman方程计算目标Q值。
+    #         # 这涉及到将下一个状态（m_next_state）输入到网络中，以估计在该状态下所有可能动作的最大Q值，
+    #         # 然后将这个最大Q值乘以折扣因子（gamma）并加上即时奖励（reward）
+    #         # q_target = reward + gamma * torch.max(model(torch.from_numpy(next_obs).float())).item()
+    #         # 简单说明 Bellman 方程，它是 动态规划 中的一个概念： 
+    #         #   一个状态的最优价值是在该状态下所有可能动作中可以获得的最大回报，其中每个动作的回报是即时奖励加上下一个状态在最优策略下的折扣后的价值。
+    #         q_target = reward + targs.gamma * torch.max(targs.model(next_obs)).item()
 
-        target_f = targs.model(obs) # 通过神经网络模型预测当前状态（m_state）下的 Q 值。
-        target_f[0][action] = q_target                      # 更新与执行的动作（action）对应的 Q 值为之前计算的目标 Q 值。
-        targs.optimizer.zero_grad()                               # 在每次网络更新前清除旧的梯度，这是PyTorch的标准做法。
-        loss = targs.criterion(target_f, targs.model(obs))    # 计算预测 Q 值（target_f）和通过网络重新预测当前状态 Q 值之间的损失。
-        loss.backward()         # 对损失进行反向传播，计算梯度
-        total_loss += loss.item()
-        targs.optimizer.step()        # 根据计算的梯度更新网络参数
+    #     target_f = targs.model(obs) # 通过神经网络模型预测当前状态（m_state）下的 Q 值。
+    #     target_f[0][action] = q_target                      # 更新与执行的动作（action）对应的 Q 值为之前计算的目标 Q 值。
+    #     targs.optimizer.zero_grad()                               # 在每次网络更新前清除旧的梯度，这是PyTorch的标准做法。
+    #     loss = targs.criterion(target_f, targs.model(obs))    # 计算预测 Q 值（target_f）和通过网络重新预测当前状态 Q 值之间的损失。
+    #     loss.backward()         # 对损失进行反向传播，计算梯度
+    #     total_loss += loss.item()
+    #     targs.optimizer.step()        # 根据计算的梯度更新网络参数
+
 
 
 

@@ -36,7 +36,7 @@ class TrainArgs :
         self.obs_size = env.observation_space.shape[0]      # 状态空间维度
         self.action_size = env.action_space.n               # 动作空间数量
 
-        self.model = DQN(self.obs_size, self.action_size)   # DQN 简单的三层网络模型
+        self.model = DQN(self.obs_size, self.action_size)   # DQN 简单的三层网络模型（主模型）
         self.memory = deque(maxlen=2000)                    # 经验回放存储。本质是一个双端队列（deque），当存储超过2000个元素时，最旧的元素将被移除。经验回放是DQN中的一项关键技术，有助于打破经验间的相关性并提高学习的效率和稳定性。
         self.batch_size = args.batch_size                   # 从【经验回放存储】中一次抽取并用于训练网络的【经验样本数】
         
@@ -56,6 +56,25 @@ class TrainArgs :
         self.render = args.render                   # 渲染 GUI 开关
         self.info = {}                              # 其他额外参数
 
+        
+        # 在 DQN 中，通常会使用两个模型：
+        #   一个是用于进行实际决策的主模型（self.model）： 用于生成当前的 Q 值
+        #   另一个是目标模型（target_model）：用于计算期望的 Q 值，以提供更稳定的学习目标
+        self.target_model = DQN(self.obs_size, self.action_size)    # 目标模型
+        self.target_model.to(self.device)                           # 将模型移动到 GPU （或 CPU）
+        self.update_target_every = 5                                # 定义更新目标模型的频率
+
+
+    def update_target_model(self, epoch):
+        '''
+        使用 主模型 更新 目标模型 网络的参数。
+            在训练循环中，需要定期更新目标模型的参数，这通常在固定的回合数之后发生。
+            而且两个模型的参数不会同时更新，学习过程会更加稳定。
+        :params: epoch 已训练回合数
+        :return: None
+        '''
+        if epoch % self.update_target_every == 0:
+            self.target_model.load_state_dict(self.model.state_dict())
 
         
     def load_last_checkpoint(self) :
