@@ -29,6 +29,14 @@ def current_millis() :
     return int(time.time() * 1000)
 
 
+def current_seconds() :
+    '''
+    当前时间戳（秒级）
+    :return: 当前时间戳（秒级）
+    '''
+    return int(time.time())
+
+
 
 def scan_device(use_cpu=False) :
     '''
@@ -42,13 +50,27 @@ def scan_device(use_cpu=False) :
     return device
 
 
+def to_tensor(obs_state, targs) :
+    '''
+    把观测空间的当前状态转换为 PyTorch 张量并送入神经网络
+    :params: obs_state 观测空间的当前状态
+    :params: targs 训练参数
+    :return: 观测空间
+    '''
+    # 把观察空间的状态数组转换成 1 x obs_size，目的是确保状态数组与 DQN 神经网络的输入层匹配
+    obs_state = np.reshape(obs_state, [1, targs.obs_size])
 
-def to_tensor(obs_state, device):
+    # 把观察空间的状态数组送入神经网络所在的设备   
+    obs_state = _to_tensor(obs_state, targs.device)                  
+    return obs_state
+
+
+def _to_tensor(obs_state, device):
     '''
     把观测空间的当前状态转换为 PyTorch 张量并送入神经网络
     :params: obs_state 观测空间的当前状态
     :params: device 当前运行神经网络的设备： GPU/CPU
-    :return: 
+    :return: 观测空间
     '''
     if isinstance(obs_state, np.ndarray):
         return torch.from_numpy(obs_state).float().to(device)
@@ -58,3 +80,4 @@ def to_tensor(obs_state, device):
     
     else:
         return obs_state
+

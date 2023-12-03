@@ -123,6 +123,7 @@ def train_dqn(args, env) :
 
 
 
+# FIXME 并发训练
 def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     '''
     使用深度 Q 网络（DQN）算法进行训练。
@@ -130,102 +131,143 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     :params: targs 用于训练的环境和模型关键参数
     :return: None
     '''
-    env = targs.env
-    raw_obs = env.reset()                               # 重置环境（在Acrobot环境中，这个初始状态是一个包含了关于Acrobot状态的数组，例如两个连杆的角度和角速度。）
-                                                        # raw_obs 的第 0 个元素才是状态数组 (array([ 0.9996459 ,  0.02661069,  0.9958208 ,  0.09132832, -0.04581745, -0.06583451], dtype=float32), {})
-    obs = np.reshape(raw_obs[0], [1, targs.obs_size])   # 把状态数组转换成 1 x obs_size 的数组，目的是确保状态数组与神经网络的输入层匹配。
-    obs = to_tensor(obs, targs.device)                  # 把状态数组送入神经网络所在的设备
+    raw_obs = targs.env.reset()         # 重置环境（在Acrobot环境中，这个初始状态就是观测空间，它包含了关于 Acrobot 状态的数组，例如两个连杆的角度和角速度等）
+                                        # raw_obs 的第 0 个元素才是状态数组 (array([ 0.9996459 ,  0.02661069,  0.9958208 ,  0.09132832, -0.04581745, -0.06583451], dtype=float32), {})
+    obs = to_tensor(raw_obs[0], targs)  # 把观测空间状态数组送入神经网络所在的设备
     
     # 渲染训练时的 GUI （必须在 reset 方法后执行）
     if targs.render :
-        env.render()
+        targs.env.render()
     
-    total_reward = 0            # 累计智能体从环境中获得的总奖励。在每个训练回合结束时，total_reward 将反映智能体在该回合中的总体表现。奖励越高，意味着智能体的性能越好。
-    total_loss = 0              # 累计损失率。反映了预测 Q 值和目标 Q 值之间的差异
-    step_counter = 0            # 训练步数计数器
-    bgn_time = current_millis() # 训练时长计数器
+    total_reward = 0                # 累计智能体从环境中获得的总奖励。在每个训练回合结束时，total_reward 将反映智能体在该回合中的总体表现。奖励越高，意味着智能体的性能越好。
+    total_loss = 0                  # 累计损失率。反映了预测 Q 值和目标 Q 值之间的差异
+    step_counter = 0                # 训练步数计数器
+    bgn_time = current_seconds()    # 训练时长计数器
 
+    # 开始训练智能体
     while True:
+        # 选择下一步动作
+        action = select_next_action(targs, obs)
 
-        # epsilon-greedy 策略：
-        # 智能体在选择动作时，有一定概率随机探索环境，而其余时间则根据已学习的策略选择最佳动作
-        if np.random.rand() <= targs.cur_epsilon:
-            action = env.action_space.sample()  # 随机选择一个动作
-
-        # 智能体根据当前经验、选择当前估计最优的动作
-        else :
-            action = torch.argmax(      # 2. 使用torch.argmax选择具有最高预期Q值的动作（当前状态下的最佳动作）
-                targs.model(obs)        # 1. 将当前状态 obs （张量）传递给神经网络模型（model），神经网络模型输出每个可能动作的预期Q值
-            ).item()                    # 3. 从张量中提取动作值
-
-        # 旧版本的 env.step(action) 返回值只有 4 个参数，没有 truncated
-        # 但是 truncated 和 info 暂时没用，详见 https://stackoverflow.com/questions/73195438/openai-gyms-env-step-what-are-the-values
-        next_obs, reward, terminated, truncated, info  = env.step(action)
-
-        next_obs = np.reshape(next_obs, [1, targs.obs_size])
-        next_obs = to_tensor(next_obs, targs.device)
-        done = terminated
-        step_counter += 1
+        # 执行下一步动作
+        next_obs, reward, done = exec_next_action(targs, action)
         
-        # log.debug(f"[第 {epoch} 回合] 步数={step_counter}")
-        # log.debug("执行结果：")
-        # log.debug(f"  状态空间变化：{next_obs}")      # 执行动作后的新状态或观察。这是智能体在下一个时间步将观察到的环境状态。
-        # log.debug(f"  累计获得奖励：{reward}")        # 执行动作后获得的奖励。这是一个数值，指示执行该动作的效果好坏，是强化学习中的关键信号，作为当次动作的反馈。
-        # log.debug(f"  回合是否结束: {terminated}")    # 可能成功也可能失败，例如在一些游戏中，达到目标或失败会结束回合。
-        # log.debug(f"  回合是否中止: {truncated}")     # 回合因为某些约束调节提前中止，如步数限制等。
-        # log.debug(f"  其他额外信息: {info}")          # 通常用 hash 表附带自定义的额外信息（如诊断信息、调试信息），暂时不需要用到的额外信息。
-        
-        targs.memory.append((obs, action, reward, next_obs, done))    # 向memory（经验回放缓冲区）添加当前 step 执行前后状态、奖励情况等
+        # 向【经验回放存储】添加当前 step 执行前后状态、奖励情况等
+        targs.memory.append((obs, action, reward, next_obs, done))
+
         obs = next_obs          # 更新当前状态
-        total_reward += reward  # 累计奖励
-
-        writer.add_scalar('Epoch/每步奖励', reward, step_counter)
+        total_reward += reward  # 累计奖励（每一步的奖励是 env 决定的，由于 env 使用默认环境，所以这里无法调整每一步的奖励）
+        step_counter += 1       # 累计步数
         if done:
             break
 
-        # 确保只有当经验回放缓冲区（memory）中的样本数量超过批处理大小（batch_size）时，才进行学习过程。
-        # 这是为了确保有足够的样本来进行有效的批量学习。
-        # 这个过程是DQN学习算法的核心，它利用从环境中收集的经验（通过经验回放）来不断调整和优化网络，使得预测的Q值尽可能接近实际的Q值。
-        # 这种基于值的强化学习方法通过迭代这个过程，逐渐学习到一个策略，该策略可以最大化累积奖励。
-        if len(targs.memory) > targs.batch_size:
-            minibatch = random.sample(targs.memory, targs.batch_size)   # 从memory中随机抽取batch_size数量的样本。这种随机抽样是为了减少样本间的相关性，增强学习的稳定性和效率。
-            for m_obs, m_action, m_reward, m_next_obs, m_done in minibatch:
-
-                # target 即为目标 Q 值。 初始化为观测到的即时奖励（m_reward）
-                target = m_reward
-
-                # 如果回合尚未结束，则计算目标Q值。
-                if not m_done:
-                    # 使用Bellman方程计算目标Q值。
-                    # 这涉及到将下一个状态（m_next_state）输入到网络中，以估计在该状态下所有可能动作的最大Q值，
-                    # 然后将这个最大Q值乘以折扣因子（gamma）并加上即时奖励（m_reward）
-                    # target = m_reward + gamma * torch.max(model(torch.from_numpy(m_next_obs).float())).item()
-                    target = m_reward + targs.gamma * torch.max(targs.model(m_next_obs)).item()
-                    # 简单说明 Bellman 方程，它是 动态规划 中的一个概念： 
-                    #   一个状态的最优价值是在该状态下所有可能动作中可以获得的最大回报，其中每个动作的回报是即时奖励加上下一个状态在最优策略下的折扣后的价值。
-
-                target_f = targs.model(m_obs) # 通过神经网络模型预测当前状态（m_state）下的 Q 值。
-                target_f[0][m_action] = target                      # 更新与执行的动作（m_action）对应的 Q 值为之前计算的目标 Q 值。
-                targs.optimizer.zero_grad()                               # 在每次网络更新前清除旧的梯度，这是PyTorch的标准做法。
-                loss = targs.criterion(target_f, targs.model(m_obs))    # 计算预测 Q 值（target_f）和通过网络重新预测当前状态 Q 值之间的损失。
-                loss.backward()         # 对损失进行反向传播，计算梯度
-                total_loss += loss.item()
-                targs.optimizer.step()        # 根据计算的梯度更新网络参数
+        dqn(targs, total_loss)  # DQN 学习（核心算法，从【经验回放存储】中收集经验）
     # while end
 
-    end_time = current_millis()
-    finish_time = int((end_time - bgn_time) / 1000)
+    finish_time = current_seconds() - bgn_time
     log.info(f"第 {epoch}/{targs.epoches} 回合 完成，累计步数={step_counter} 步, 耗时={finish_time}s, 奖励={total_reward}, 探索率={targs.cur_epsilon}")
 
     # 记录每个回合结束时的训练参数到 TensorBoard
-    writer.add_scalar('Training/每回合探索率', targs.cur_epsilon, epoch)
-    writer.add_scalar('Training/每回合步数', step_counter, epoch)
-    writer.add_scalar('Training/每回合完成时间', finish_time, epoch)
-    writer.add_scalar('Training/每回合总奖励', total_reward, epoch)
-    writer.add_scalar('Training/每回合平均损失', total_loss / step_counter, epoch)
-    writer.add_scalar('Training/每回合学习率', targs.optimizer.param_groups[0]['lr'], epoch)
-    writer.add_histogram('Training/每回合 Q 值分布', targs.model(obs), epoch)     # 用于了解模型对每个状态-动作对的估计
+    # 分组名/指标 ， 分组名可以不要
+    writer.add_scalar('通常/每回合探索率', targs.cur_epsilon, epoch)
+    writer.add_scalar('通常/每回合步数', step_counter, epoch)
+    writer.add_scalar('通常/每回合完成时间', finish_time, epoch)
+    writer.add_scalar('通常/每回合总奖励', total_reward, epoch)
+    writer.add_scalar('通常/每回合平均损失', total_loss / step_counter, epoch)
+    writer.add_scalar('特殊/每回合学习率', targs.optimizer.param_groups[0]['lr'], epoch)
+    writer.add_histogram('特殊/每回合 Q 值分布', targs.model(obs), epoch)     # 用于了解模型对每个状态-动作对的估计
     return
+
+
+
+def select_next_action(targs: TrainArgs, obs) :
+    '''
+    选择下一步要执行的动作。
+        DQN 一般使用 epsilon-greedy 策略：
+        智能体在选择动作时，有一定概率随机探索环境，而其余时间则根据已学习的策略选择最佳动作
+    :params: targs 用于训练的环境和模型关键参数
+    :params: obs 当前观测空间的状态
+    :return: 下一步要执行的动作
+    '''
+
+    # 在观测空间随机选择一个动作（受当前探索率影响）
+    if np.random.rand() <= targs.cur_epsilon :
+        action = targs.env.action_space.sample()  
+
+    # 智能体根据当前经验、选择当前估计最优的动作
+    else :
+        action = torch.argmax(      # 2. 使用torch.argmax选择具有最高预期Q值的动作（当前状态下的最佳动作）
+            targs.model(obs)        # 1. 将观测空间当前状态 obs （张量）传递给神经网络模型（model），神经网络模型输出每个可能动作的预期Q值
+        ).item()                    # 3. 从张量中提取动作值
+    return action
+
+
+
+def exec_next_action(targs: TrainArgs, action) :
+    '''
+    执行下一步动作
+    :params: targs 用于训练的环境和模型关键参数
+    :params: action 下一步动作
+    :return: 执行动作后观测空间返回的状态
+    '''
+
+    # 旧版本的 env.step(action) 返回值只有 4 个参数，没有 truncated
+    # 但是 truncated 和 info 暂时没用，详见 https://stackoverflow.com/questions/73195438/openai-gyms-env-step-what-are-the-values
+    next_raw_obs, reward, terminated, truncated, info  = targs.env.step(action)
+    # log.debug(f"[第 {epoch} 回合] 步数={step_counter}")
+    # log.debug("执行结果：")
+    # log.debug(f"  状态空间变化：{next_raw_obs}")  # 执行动作后的新状态或观察。这是智能体在下一个时间步将观察到的环境状态。
+    # log.debug(f"  累计获得奖励：{reward}")        # 执行动作后获得的奖励。这是一个数值，指示执行该动作的效果好坏，是强化学习中的关键信号，作为当次动作的反馈。
+    # log.debug(f"  回合是否结束: {terminated}")    # 可能成功也可能失败，例如在一些游戏中，达到目标或失败会结束回合。
+    # log.debug(f"  回合是否中止: {truncated}")     # 回合因为某些约束调节提前中止，如步数限制等。
+    # log.debug(f"  其他额外信息: {info}")          # 通常用 hash 表附带自定义的额外信息（如诊断信息、调试信息），暂时不需要用到的额外信息。
+    
+    next_obs = to_tensor(next_raw_obs, targs)      # 把观测空间状态数组送入神经网络所在的设备
+    done = terminated
+    return (next_obs, reward, done)
+
+
+
+def dqn(targs: TrainArgs, total_loss) :
+    '''
+    进行 DQN 学习（基于 Q 值的强化学习方法）：
+        这个过程是 DQN 学习算法的核心，它利用从环境中收集的经验来不断调整和优化网络，使得预测的 Q 值尽可能接近实际的 Q 值。
+        通过迭代这个过程，使得神经网络逐渐学习到一个策略，该策略可以最大化累积奖励。
+    :params: targs 用于训练的环境和模型关键参数
+    :params: action 下一步动作
+    :return: 执行动作后观测空间返回的状态
+    '''
+
+    # 确保只有当【经验回放存储】中的样本数量超过批处理大小时，才进行学习过程
+    # 这是为了确保有足够的样本来进行有效的批量学习
+    if len(targs.memory) <= targs.batch_size :
+        return
+    
+    # 从【经验回放存储】中随机抽取 batch_size 个样本数
+    # 这种随机抽样是为了减少样本间的相关性，增强学习的稳定性和效率
+    samples = random.sample(targs.memory, targs.batch_size)
+    
+    # 注意取出的参数顺序要和存储时的顺序一致
+    for obs, action, reward, next_obs, done in samples:
+        q_target = reward   # 目标 Q 值：初始化为观测到的即时奖励
+
+        # 如果回合尚未结束，则计算目标Q值。
+        if not done:
+            # 使用Bellman方程计算目标Q值。
+            # 这涉及到将下一个状态（m_next_state）输入到网络中，以估计在该状态下所有可能动作的最大Q值，
+            # 然后将这个最大Q值乘以折扣因子（gamma）并加上即时奖励（reward）
+            # q_target = reward + gamma * torch.max(model(torch.from_numpy(next_obs).float())).item()
+            # 简单说明 Bellman 方程，它是 动态规划 中的一个概念： 
+            #   一个状态的最优价值是在该状态下所有可能动作中可以获得的最大回报，其中每个动作的回报是即时奖励加上下一个状态在最优策略下的折扣后的价值。
+            q_target = reward + targs.gamma * torch.max(targs.model(next_obs)).item()
+
+        target_f = targs.model(obs) # 通过神经网络模型预测当前状态（m_state）下的 Q 值。
+        target_f[0][action] = q_target                      # 更新与执行的动作（action）对应的 Q 值为之前计算的目标 Q 值。
+        targs.optimizer.zero_grad()                               # 在每次网络更新前清除旧的梯度，这是PyTorch的标准做法。
+        loss = targs.criterion(target_f, targs.model(obs))    # 计算预测 Q 值（target_f）和通过网络重新预测当前状态 Q 值之间的损失。
+        loss.backward()         # 对损失进行反向传播，计算梯度
+        total_loss += loss.item()
+        targs.optimizer.step()        # 根据计算的梯度更新网络参数
 
 
 
