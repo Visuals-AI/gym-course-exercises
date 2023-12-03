@@ -9,7 +9,7 @@
 CHECKPOINTS_DIR = './out/checkpoints'
 CHECKPOINT_PREFIX = 'checkpoint_epoch'
 CHECKPOINT_SUFFIX = '.pth'
-SAVE_CHECKPOINT_INTERVAL = 10
+SAVE_CHECKPOINT_INTERVAL = 100
 
 # 训练完成后的模型输出位置
 MODELS_DIR = './out/models'
