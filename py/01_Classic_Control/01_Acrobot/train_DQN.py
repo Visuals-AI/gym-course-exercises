@@ -226,7 +226,7 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
     # log.debug(f"  其他额外信息: {info}")          # 通常用 hash 表附带自定义的额外信息（如诊断信息、调试信息），暂时不需要用到的额外信息。
     
     next_obs = to_tensor(next_raw_obs, targs)      # 把观测空间状态数组送入神经网络所在的设备
-    done = terminated
+    done = terminated or truncated                 # 在 Acrobot 问题中，如果超过 500 步未达成目标就会中止游戏
     return (next_obs, reward, done)
 
 
