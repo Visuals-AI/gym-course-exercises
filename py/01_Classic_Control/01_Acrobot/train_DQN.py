@@ -41,7 +41,7 @@ def arguments() :
     parser.add_argument('-c', '--cpu', dest='cpu', action='store_true', default=False, help='强制使用 CPU: 默认情况下，自动优先使用 GPU 训练（除非没有 GPU）')
     parser.add_argument('-z', '--zero', dest='zero', action='store_true', default=False, help='强制从零开始重新训练（不加载上次训练的 checkpoint）')
     parser.add_argument('-e', '--epoches', dest='epoches', type=int, default=10000, help='训练次数: 即训练过程中智能体将经历的总回合数。每个回合是一个从初始状态到终止状态的完整序列')
-    parser.add_argument('-g', '--gamma', dest='gamma', type=float, default=0.95, help='折扣因子: 用于折算未来奖励的在当前回合中的价值。它决定了未来奖励对当前决策的影响程度。值越高，智能体越重视长远利益，通常设置在 [0.9, 0.99]')
+    parser.add_argument('-g', '--gamma', dest='gamma', type=float, default=0.95, help='折扣因子: 用于折算未来奖励的在当前回合中的价值。一个接近 0 的值表示智能体更重视即时奖励，而接近 1 的值表示智能体更重视长期奖励。')
     parser.add_argument('-s', '--epsilon', dest='epsilon', type=float, default=1.0, help='探索率: 用于 epsilon-greedy 策略，它决定了智能体探索新动作的频率。值越高，智能体越倾向于尝试新的、不确定的动作而不是已知的最佳动作。这个值通常在训练初期较高，随着学习的进行逐渐降低')
     parser.add_argument('-d', '--epsilon_decay', dest='epsilon_decay', type=float, default=0.995, help='衰减率: 探索率随时间逐渐减小的速率。每经过一个回合，epsilon 将乘以这个衰减率，从而随着时间的推移减少随机探索的频率')
     parser.add_argument('-m', '--min_epsilon', dest='min_epsilon', type=float, default=0.1, help='最小探索率: 即使经过多次衰减，探索率也不会低于这个值，确保了即使在后期也有一定程度的探索')
@@ -252,59 +252,104 @@ def dqn(targs: TrainArgs, total_loss) :
     # 解压 transitions 到单独的批次
     batch = Transition(*zip(*transitions))
 
-    # 将每个样本的组成部分转换为独立的批次
-    # 将 (obs, action, reward, next_obs, done) 分解为单独的批次
-    # 确保将 NumPy 整数转换为 PyTorch 张量
-    obs_batch = torch.cat([torch.tensor(s, dtype=torch.float32) for s in batch.obs])
-    action_batch = torch.cat([torch.tensor([a], dtype=torch.long) for a in batch.action])
-    reward_batch = torch.cat([torch.tensor([r], dtype=torch.float32) for r in batch.reward])
-    next_obs_batch = torch.cat([torch.tensor(s, dtype=torch.float32) for s in batch.next_obs])
-    done_batch = torch.cat([torch.tensor([d], dtype=torch.float32) for d in batch.done])
+    # 将每个样本的组成部分 (obs, action, reward, next_obs, done) 转换为独立的批次
+    # 其中 action, reward, done 因为都是单个的数值（标量），而不是数组或列表，故需要升维处理（使其成为张量），否则 torch.cat 无法拼接
+    obs_batch = cat_batch_tensor(batch.obs, torch.float32)
+    action_batch = cat_batch_tensor(batch.action, torch.long, up_dim=True)
+    reward_batch = cat_batch_tensor(batch.reward, torch.float32, up_dim=True)
+    next_obs_batch = cat_batch_tensor(batch.next_obs, torch.float32)
+    done_batch = cat_batch_tensor(batch.done, torch.float32, up_dim=True)
 
-    # 计算当前状态下的 Q 值
-    current_q_values = targs.model(obs_batch).gather(1, action_batch.unsqueeze(1))
+    # 获得当前状态下的 Q 值（对当前状态的观测进行前向传播的结果，用于后续计算损失）
+    current_Q_values = get_current_Q_values(targs.model, obs_batch, action_batch)
 
     # 计算下一个状态的最大预测 Q 值
-    next_q_values = targs.target_model(next_obs_batch).detach().max(1)[0]
-    expected_q_values = reward_batch + (targs.gamma * next_q_values * (1 - done_batch))
+    expected_q_values = calculate_expected_Q_values(
+        targs.target_model, targs.gamma, 
+        next_obs_batch, reward_batch, done_batch
+    )
 
-    # 计算 Huber 损失
-    loss = F.smooth_l1_loss(current_q_values, expected_q_values.unsqueeze(1))
+    # 计算 Huber 损失（亦称平滑 L1 损失，用于表示当前 Q 值和预期 Q 值之间的差异）
+    # Huber 损失是均方误差和绝对误差的结合，对异常值不那么敏感
+    loss = F.smooth_l1_loss(
+        current_Q_values,               # 是一个二维张量，其形状是 [batch_size, 1]，因为它是通过 gather 操作从网络输出中选取的特定动作的 Q 值
+        expected_q_values.unsqueeze(1)  # 在张量中增加一个维度，其中第二个维度（列）的大小为 1，即使其形状从 [batch_size] 转换成 [batch_size, 1]
+    )
 
     # 优化模型
-    targs.optimizer.zero_grad()
-    loss.backward()
-    for param in targs.model.parameters():
-        param.grad.data.clamp_(-1, 1)
-    targs.optimizer.step()
+    optimize_params(targs.model, targs.optimizer, loss)
 
     # 累积损失更新
     total_loss += loss.item()
 
-    # 注意取出的参数顺序要和存储时的顺序一致
-    # for obs, action, reward, next_obs, done in transitions :
-    #     q_target = reward   # 目标 Q 值：初始化为观测到的即时奖励
 
-    #     # 如果回合尚未结束，则计算目标 Q 值。
-    #     if not done:
-    #         # 使用Bellman方程计算目标Q值。
-    #         # 这涉及到将下一个状态（m_next_state）输入到网络中，以估计在该状态下所有可能动作的最大Q值，
-    #         # 然后将这个最大Q值乘以折扣因子（gamma）并加上即时奖励（reward）
-    #         # q_target = reward + gamma * torch.max(model(torch.from_numpy(next_obs).float())).item()
-    #         # 简单说明 Bellman 方程，它是 动态规划 中的一个概念： 
-    #         #   一个状态的最优价值是在该状态下所有可能动作中可以获得的最大回报，其中每个动作的回报是即时奖励加上下一个状态在最优策略下的折扣后的价值。
-    #         q_target = reward + targs.gamma * torch.max(targs.model(next_obs)).item()
+def cat_batch_tensor(batch_data, data_type, up_dim=False) :
+    batch_tensor = [torch.tensor([d], dtype=data_type) for d in batch_data] \
+                if up_dim else \
+            [d.clone().detach() for d in batch_data]
+    return torch.cat(batch_tensor)
 
-    #     target_f = targs.model(obs) # 通过神经网络模型预测当前状态（m_state）下的 Q 值。
-    #     target_f[0][action] = q_target                      # 更新与执行的动作（action）对应的 Q 值为之前计算的目标 Q 值。
-    #     targs.optimizer.zero_grad()                               # 在每次网络更新前清除旧的梯度，这是PyTorch的标准做法。
-    #     loss = targs.criterion(target_f, targs.model(obs))    # 计算预测 Q 值（target_f）和通过网络重新预测当前状态 Q 值之间的损失。
-    #     loss.backward()         # 对损失进行反向传播，计算梯度
-    #     total_loss += loss.item()
-    #     targs.optimizer.step()        # 根据计算的梯度更新网络参数
 
+def get_current_Q_values(model, obs_batch, action_batch) :
+    # 步骤 1: 将观测数据（状态）输入到模型中，以获取每个状态下所有动作的预测 Q 值。
+    # obs_batch 是当前状态的批量数据
+    predicted_Q_values = model(obs_batch)
+
+    # 步骤 2: 对动作张量进行处理，以使其维度与预测的 Q 值张量匹配。
+    # action_batch 包含了每个状态下选择的动作。
+    # unsqueeze(1) 是将 action_batch 从 [batch_size] 转换为 [batch_size, 1]
+    # 这是为了在接下来的操作中能够选择正确的 Q 值。
+    actions_unsqueezed = action_batch.unsqueeze(1)
+
+    # 步骤 3: 从预测的 Q 值中选择对应于实际采取的动作的 Q 值。
+    # gather 函数在这里用于实现这一点。
+    # 第一个参数 1 表示操作在第二维度（动作维度）上进行。
+    # actions_unsqueezed 用作索引，指定从每一行（每个状态）中选择哪个动作的 Q 值。
+    cur_Q_values = predicted_Q_values.gather(1, actions_unsqueezed)
+    return cur_Q_values
+
+
+def calculate_expected_Q_values(target_model, gamma, next_obs_batch, reward_batch, done_batch) :
+    '''
+    计算下一个状态的最大预测 Q 值
+    :params: target_model 目标网络。在 DQN 算法中，通常使用两个网络：主网络（用于选择动作和更新），目标网络（用于计算目标 Q 值）。目标网络的参数定期从主网络复制过来，但在更新间隔内保持不变。这有助于稳定学习过程。
+    :params: gamma 折扣因子: 用于折算未来奖励的在当前回合中的价值。
+    :params: next_obs_batch 执行动作后、观测空间的状态批量数据。
+    :params: reward_batch 
+    :params: done_batch 
+    :return: 
+    '''
+
+    # target_model(next_obs_batch): 将下一个状态的批量数据输入目标网络，得到每个状态下每个可能动作的预测 Q 值。
+    # detach(): 用于切断这些 Q 值与计算图的联系。它会创建一个新的张量，它与原始数据共享内容，但不参与梯度计算。这在计算目标 Q 值时很常见，因为我们不希望在反向传播中更新目标网络。
+    # max(1)：用于找出每个状态的所有动作 Q 值中的最大值。.max(1) 的 1 表示操作是在张量的第二个维度上进行的（即动作维度）
+    # [0]：从 .max(1) 返回的结果中，只取最大值。因为 .max(1) 返回一个元组，其中第一个元素（索引为 0 的元素）是每一行的最大值。
+    next_Q_values = target_model(next_obs_batch).detach().max(1)[0]
+
+    # 这个公式基于贝尔曼方程（思路和动态规划一样）
+    # 这个公式表明，一个动作的预期 Q 值等于即时奖励加上在下一个状态下所有可能动作的最大预期 Q 值的折扣值。这个折扣值反映了未来奖励的当前价值。
+    expected_Q_values = reward_batch + (gamma * next_Q_values * (1 - done_batch))
+
+    # 为什么要乘以 (1 - done_batch)
+    # 当一个回合结束时（例如智能体到达了目标状态或触发了游戏结束的条件），在该状态下没有未来的奖励。
+    # 乘以 (1 - done_batch) 确保了如果回合结束，未来奖励的贡献为零。
+    # 换句话说，如果 done_batch 中的值为 1（表示回合结束），next_Q_values 将不会对计算的 expected_Q_values 产生影响。
+
+    return expected_Q_values
+
+
+def optimize_params(model, optimizer, loss) :
+    # 优化模型
+    optimizer.zero_grad() # 清除之前的梯度
+    loss.backward()             # 反向传播，计算梯度
+    # 梯度裁剪，防止梯度爆炸
+    # 梯度爆炸会导致模型权重的大幅更新，使得模型无法收敛或表现出不稳定的行为
+    for param in model.parameters():
+        param.grad.data.clamp_(-1, 1)   # 限制梯度值在 -1 到 1 的范围内，这是防止梯度值变得过大或过小、导致训练不稳定
+    optimizer.step()      # 更新参数（梯度下降，指使用计算出的梯度来更新模型参数的过程）
 
 
 
 if __name__ == '__main__' :
     main(arguments())
+

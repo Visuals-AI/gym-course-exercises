@@ -22,3 +22,14 @@ pip install -r requirements.txt
 
 
 tensorboard --logdir=runs
+
+
+
+正向传播：定义了如何从输入数据获得输出的过程
+反向传播：指计算损失函数相对于网络参数的梯度的过程。
+损失
+梯度
+梯度裁剪
+梯度下降
+梯度爆炸
+
