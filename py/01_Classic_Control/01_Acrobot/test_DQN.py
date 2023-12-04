@@ -40,6 +40,7 @@ def run_ai(env) :
     model.eval()
 
     # 运行智能体
+    step = 0
     state = env.reset()
     for _ in range(1000):  # 设置一个足够长的时间步骤，或者直到环境结束
         env.render()  # 渲染 GUI，前提是 env 初始化时使用 human 模式
@@ -54,12 +55,12 @@ def run_ai(env) :
         
         # 执行动作并获取下一个状态
         state, _, done, _, _ = env.step(action)
-        print(state)
-        
+        step +=1
         if done:
-            state = env.reset()
+            break
 
     env.close()
+    print(step)
     
 
 if __name__ == '__main__' :
