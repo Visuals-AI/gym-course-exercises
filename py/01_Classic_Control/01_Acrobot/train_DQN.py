@@ -359,7 +359,7 @@ def optimize_params(model, optimizer, loss) :
     loss.backward()             # 反向传播，计算梯度
     # 梯度裁剪，防止梯度爆炸
     # 梯度爆炸会导致模型权重的大幅更新，使得模型无法收敛或表现出不稳定的行为
-    for param in model.parameters():
+    for param in model.parameters() :
         param.grad.data.clamp_(-1, 1)   # 限制梯度值在 -1 到 1 的范围内，这是防止梯度值变得过大或过小、导致训练不稳定
     optimizer.step()      # 更新参数（梯度下降，指使用计算出的梯度来更新模型参数的过程）
 
