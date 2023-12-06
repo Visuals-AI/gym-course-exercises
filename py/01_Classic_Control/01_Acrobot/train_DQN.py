@@ -252,8 +252,8 @@ def dqn(targs: TrainArgs, total_loss) :
     # 解压 transitions 到单独的批次
     batch = Transition(*zip(*transitions))
 
-    # 将每个样本的组成部分 (obs, action, reward, next_obs, done) 转换为独立的批次
-    # 其中 action, reward, done 因为都是单个的数值（标量），而不是数组或列表，故需要升维处理（使其成为张量），否则 torch.cat 无法拼接
+    # 将每个样本的组成部分 (obs, action, reward, next_obs, done) ，拆分转换为独立的批次
+    # 目的是后续计算时可以批量进行、加速运算 （单个计算也可以，但是太慢了）
     obs_batch = cat_batch_tensor(batch.obs, torch.float32)
     action_batch = cat_batch_tensor(batch.action, torch.long, up_dim=True)
     reward_batch = cat_batch_tensor(batch.reward, torch.float32, up_dim=True)
@@ -284,6 +284,13 @@ def dqn(targs: TrainArgs, total_loss) :
 
 
 def cat_batch_tensor(batch_data, data_type, up_dim=False) :
+    '''
+    连接一批张量
+    :params: batch_data 一批张量数据
+    :params: data_type 张量元素的数据类型
+    :params: up_dim 是否需要升维。当且仅当张量数据是 0 维标量时，才需要升维，否则 torch.cat 会报错
+    :return: 连接后的张量
+    '''
     batch_tensor = [torch.tensor([d], dtype=data_type) for d in batch_data] \
                 if up_dim else \
             [d.clone().detach() for d in batch_data]
@@ -291,6 +298,14 @@ def cat_batch_tensor(batch_data, data_type, up_dim=False) :
 
 
 def get_current_Q_values(model, obs_batch, action_batch) :
+    '''
+    获取当前状态下的 Q 值（真实值）
+    :params: model 主网络/主模型。在 DQN 算法中，通常使用两个网络：主网络（用于选择动作和更新），目标网络（用于计算目标 Q 值）。
+    :params: obs_batch 观测空间的当前状态批量数据。
+    :params: action_batch 动作空间的批量数据
+    :return: 
+    '''
+
     # 步骤 1: 将观测数据（状态）输入到模型中，以获取每个状态下所有动作的预测 Q 值。
     # obs_batch 是当前状态的批量数据
     predicted_Q_values = model(obs_batch)
@@ -312,11 +327,11 @@ def get_current_Q_values(model, obs_batch, action_batch) :
 def calculate_expected_Q_values(target_model, gamma, next_obs_batch, reward_batch, done_batch) :
     '''
     计算下一个状态的最大预测 Q 值
-    :params: target_model 目标网络。在 DQN 算法中，通常使用两个网络：主网络（用于选择动作和更新），目标网络（用于计算目标 Q 值）。目标网络的参数定期从主网络复制过来，但在更新间隔内保持不变。这有助于稳定学习过程。
+    :params: target_model 目标网络/目标模型。在 DQN 算法中，通常使用两个网络：主网络（用于选择动作和更新），目标网络（用于计算目标 Q 值）。目标网络的参数定期从主网络复制过来，但在更新间隔内保持不变。这有助于稳定学习过程。
     :params: gamma 折扣因子: 用于折算未来奖励的在当前回合中的价值。
     :params: next_obs_batch 执行动作后、观测空间的状态批量数据。
-    :params: reward_batch 
-    :params: done_batch 
+    :params: reward_batch 执行动作后、获得奖励的批量数据
+    :params: done_batch 回合完成状态的批量数据
     :return: 
     '''
 
@@ -340,7 +355,7 @@ def calculate_expected_Q_values(target_model, gamma, next_obs_batch, reward_batc
 
 def optimize_params(model, optimizer, loss) :
     # 优化模型
-    optimizer.zero_grad() # 清除之前的梯度
+    optimizer.zero_grad() # 清除之前的梯度。PyTorch 会默认累积梯度，如果不清除梯度，新计算的梯度会被加到已存在的梯度上，在 DQN 中这会使得训练过程变得不稳定，甚至可能导致模型完全无法学习。
     loss.backward()             # 反向传播，计算梯度
     # 梯度裁剪，防止梯度爆炸
     # 梯度爆炸会导致模型权重的大幅更新，使得模型无法收敛或表现出不稳定的行为
