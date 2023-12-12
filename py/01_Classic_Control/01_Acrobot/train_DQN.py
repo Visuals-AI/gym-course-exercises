@@ -319,7 +319,6 @@ def calculate_expected_Q_values(target_model, gamma, next_obs_batch, reward_batc
     # 当一个回合结束时（例如智能体到达了目标状态或触发了游戏结束的条件），在该状态下没有未来的奖励。
     # 乘以 (1 - done_batch) 确保了如果回合结束，未来奖励的贡献为零。
     # 换句话说，如果 done_batch 中的值为 1（表示回合结束），next_Q_values 将不会对计算的 expected_Q_values 产生影响。
-
     return expected_Q_values
 
 
