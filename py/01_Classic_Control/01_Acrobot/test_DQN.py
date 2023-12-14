@@ -40,13 +40,20 @@ def arguments() :
 def main(args) :
     env = gym.make('Acrobot-v1', 
                     render_mode=("human" if args.render else None)
-    )
+    )   # 验证时如果有需要，可以渲染 GUI 观察实时挑战情况
 
     test_model(args, env)
     
 
 
 def test_model(args, env) :
+    '''
+    加载训练好的模型，重复验证，计算通过率。
+    :params: args 从命令行传入的训练控制参数
+    :params: env 当前交互的环境变量，如 Acrobot
+    :return: None
+    '''
+
     targs = TrainArgs(args, env, 
                       eval=True     # 设置为评估模式
     )
@@ -89,7 +96,8 @@ def test(targs : TrainArgs, epoch) :
     for _ in range(ACROBOT_V1_MAX_STEP) :
 
         # 渲染 GUI（前提是 env 初始化时使用 human 模式）
-        targs.env.render()
+        if targs.render :
+            targs.env.render()
 
         # 使用模型推理下一步的动作
         with torch.no_grad() :  # no_grad 告诉 PyTorch 在这个块中不要计算梯度。
