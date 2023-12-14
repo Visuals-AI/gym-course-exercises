@@ -33,6 +33,7 @@ def arguments() :
     )
     parser.add_argument('-r', '--render', dest='render', action='store_false', default=True, help='渲染模式: 可以通过 GUI 观察智能体实时交互情况，但是会极大拉低训练效率')
     parser.add_argument('-c', '--cpu', dest='cpu', action='store_true', default=False, help='强制使用 CPU: 默认情况下，自动优先使用 GPU 训练（除非没有 GPU）')
+    parser.add_argument('-e', '--epoches', dest='epoches', type=int, default=100, help='验证次数')
     return parser.parse_args()
 
 
@@ -41,11 +42,11 @@ def main(args) :
                     render_mode=("human" if args.render else None)
     )
 
-    run_ai(args, env)
+    test_model(args, env)
     
 
 
-def run_ai(args, env) :
+def test_model(args, env) :
     targs = TrainArgs(args, env, 
                       eval=True     # 设置为评估模式
     )
@@ -55,24 +56,43 @@ def run_ai(args, env) :
         torch.load(ACROBOT_MODEL_PATH)
     )
     
+    log.info("++++++++++++++++++++++++++++++++++++++++")
+    log.info("开始验证模型 ...")
+    cnt = 0
+    for epoch in range(args.epoches) :
+        log.info(f"第 {epoch}/{args.epoches} 回合验证开始 ...")
+        is_ok = test(targs, epoch)
+        cnt += (1 if is_ok else 0)
+
+    percentage = (cnt / args.epoches) * 100
+    log.warn(f"已完成全部验证，挑战成功率为: {percentage:.2f}%")
+    log.info("----------------------------------------")
+    env.close()
+
+
+def test(targs : TrainArgs, epoch) :
+    '''
+    验证模型是否完成挑战。
+    :params: targs 用于运行模型的环境和关键参数
+    :params: epoch 验证回合数
+    :return: 是否完成挑战
+    '''
+    raw_obs = targs.env.reset()
+
+    # 把观测空间的初始状态转换为 PyTorch 张量，并送入神经网络所在的设备
+    obs = to_tensor(raw_obs[0], targs)
+
+
     # Acrobot 问题的 v1 版本要求在 200 步内完成
     ACROBOT_V1_MAX_STEP = 200
     step_counter = 0
-
-    log.info("++++++++++++++++++++++++++++++++++++++++")
-    log.info("开始验证模型 ...")
-    obs = env.reset()
     for _ in range(ACROBOT_V1_MAX_STEP) :
 
         # 渲染 GUI（前提是 env 初始化时使用 human 模式）
-        env.render()
-        
-        # 把观测空间的当前状态转换为 PyTorch 张量，并送入神经网络所在的设备
-        obs = obs[0] if isinstance(obs, tuple) else obs
-        obs = to_tensor(obs, targs)
+        targs.env.render()
 
         # 使用模型推理下一步的动作
-        with torch.no_grad() :  # 上下文管理器，它告诉 PyTorch 在这个块中不要计算梯度。
+        with torch.no_grad() :  # no_grad 告诉 PyTorch 在这个块中不要计算梯度。
                                 # 在推理过程中，是使用模型来预测输出，而不是通过反向传播来更新模型的权重。
             
             # 传递输入数据到模型
@@ -81,28 +101,30 @@ def run_ai(args, env) :
             # 在模型的输出中找到具有最大 Q 值的动作的索引
             action_index = model_output.max(1)[1]
 
-            # 调整形状为 (1, 1)
+            # 调整张量形状为 (1, 1)
             action_index_reshaped = action_index.view(1, 1)
 
             # 获取单个动作值
             action = action_index_reshaped.item()
         
         
-        # 执行动作并获取下一个状态（直接更新到 obs）
-        obs, _, done, _, _ = env.step(action)
-        step_counter +=1
-
-        log.debug(f"已执行 {step_counter} 步: {action}")
+        # 执行动作并获取下一个状态
+        next_obs, _, done, _, _ = targs.env.step(action)
+        obs = to_tensor(next_obs, targs)
         if done:
             break
 
-    if step_counter < ACROBOT_V1_MAX_STEP :
-        log.info(f"智能体在第 {step_counter} 步完成 Acrobot 挑战")
-    else :
-        log.info(f"智能体挑战 Acrobot 失败")
+        step_counter +=1
+        # log.debug(f"[第 {epoch} 回合] 已执行 {step_counter} 步: {action}")
+        
 
-    env.close()
-    log.info("----------------------------------------")
+    is_ok = False
+    if step_counter < ACROBOT_V1_MAX_STEP :
+        log.info(f"[第 {epoch} 回合] 智能体在第 {step_counter} 步完成 Acrobot 挑战")
+        is_ok = True
+    else :
+        log.warn(f"[第 {epoch} 回合] 智能体未能在 {ACROBOT_V1_MAX_STEP} 步内完成 Acrobot 挑战")
+    return is_ok
 
 
 
