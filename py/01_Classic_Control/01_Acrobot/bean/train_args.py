@@ -30,7 +30,8 @@ class TrainArgs :
         '''
         self.args = args
         self.env = env
-
+        self.render = args.render                           # 渲染 GUI 开关
+        
         self.obs_size = env.observation_space.shape[0]      # 状态空间维度
         self.action_size = env.action_space.n               # 动作空间数量
 
@@ -60,7 +61,6 @@ class TrainArgs :
             self.epsilon_decay = args.epsilon_decay     # 探索率的衰减率
             self.min_epsilon = args.min_epsilon         # 最小探索率
             self.gamma = args.gamma                     # 折扣因子
-            self.render = args.render                   # 渲染 GUI 开关
             self.info = {}                              # 其他额外参数
 
             # 在 DQN 中，通常会使用两个模型：

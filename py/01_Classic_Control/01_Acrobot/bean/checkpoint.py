@@ -27,7 +27,7 @@ class Checkpoint :
     def __init__(self, model_state_dict, optimizer_state_dict, epoch, epsilon, info={}) -> None:
         self.model_state_dict = model_state_dict
         self.optimizer_state_dict = optimizer_state_dict
-        self.epoch = epoch      # 已训练的回合数（迭代数）
+        self.epoch = epoch          # 已训练的回合数（迭代数）
         self.epsilon = epsilon      # 当前探索率
         self.info = info            # 其他附加信息
 

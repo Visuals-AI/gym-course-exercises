@@ -31,7 +31,7 @@ def arguments() :
             '运行示例: python py/01_Classic_Control/01_Acrobot/test_DQN.py'
         ])
     )
-    parser.add_argument('-r', '--render', dest='render', action='store_false', default=True, help='渲染模式: 可以通过 GUI 观察智能体实时交互情况，但是会极大拉低训练效率')
+    parser.add_argument('-r', '--render', dest='render', action='store_true', default=False, help='渲染模式: 可以通过 GUI 观察智能体实时交互情况，但是会极大拉低训练效率')
     parser.add_argument('-c', '--cpu', dest='cpu', action='store_true', default=False, help='强制使用 CPU: 默认情况下，自动优先使用 GPU 训练（除非没有 GPU）')
     parser.add_argument('-e', '--epoches', dest='epoches', type=int, default=100, help='验证次数')
     return parser.parse_args()
@@ -68,7 +68,7 @@ def test_model(args, env) :
     cnt = 0
     for epoch in range(args.epoches) :
         log.info(f"第 {epoch}/{args.epoches} 回合验证开始 ...")
-        is_ok = test(targs, epoch)
+        is_ok = test(targs, epoch + 1)
         cnt += (1 if is_ok else 0)
 
     percentage = (cnt / args.epoches) * 100
@@ -81,7 +81,7 @@ def test(targs : TrainArgs, epoch) :
     '''
     验证模型是否完成挑战。
     :params: targs 用于运行模型的环境和关键参数
-    :params: epoch 验证回合数
+    :params: epoch 正在验证的回合数
     :return: 是否完成挑战
     '''
     raw_obs = targs.env.reset()
