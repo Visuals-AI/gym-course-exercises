@@ -49,13 +49,17 @@ def run_ai(args, env) :
                       eval=True     # 设置为评估模式
     )
     
-    targs.model.load_state_dict(         # 加载模型参数  
-                torch.load(ACROBOT_MODEL_PATH)
-            )
+    # 加载模型参数  
+    targs.model.load_state_dict(         
+        torch.load(ACROBOT_MODEL_PATH)
+    )
     
+    # Acrobot 问题的 v1 版本要求在 200 步内完成
     ACROBOT_V1_MAX_STEP = 200
     step_counter = 0
 
+    log.info("++++++++++++++++++++++++++++++++++++++++")
+    log.info("开始验证模型 ...")
     obs = env.reset()
     for _ in range(ACROBOT_V1_MAX_STEP) :
 
@@ -65,25 +69,33 @@ def run_ai(args, env) :
         # 将当前状态转换为适当的输入格式
         obs = obs[0] if isinstance(obs, tuple) else obs
         obs = torch.from_numpy(obs).float().unsqueeze(0)
+        obs = obs.to(targs.device)
+
 
         # state = to_tensor(raw_obs[0], targs)  # 把观测空间状态数组送入神经网络所在的设备
         
-        obs = obs.to(targs.device)
 
-        # 使用模型预测动作
-        with torch.no_grad():
+        # 使用模型预测下一步的动作
+        with torch.no_grad() :
             action = targs.model(obs).max(1)[1].view(1, 1).item()
         
-        # 执行动作并获取下一个状态
-        next_obs, _, done, _, _ = env.step(action)
+        # 执行动作并获取下一个状态（直接更新到 obs）
+        obs, _, done, _, _ = env.step(action)
         step_counter +=1
-        print(step_counter)
+
+        log.debug(f"已执行 {step_counter} 步: {action}")
         if done:
             break
-        obs = next_obs
+
+    if step_counter < ACROBOT_V1_MAX_STEP :
+        log.info(f"智能体在第 {step_counter} 步完成 Acrobot 挑战")
+    else :
+        log.info(f"智能体挑战 Acrobot 失败")
 
     env.close()
-    
+    log.info("----------------------------------------")
+
+
 
 if __name__ == '__main__' :
     main(arguments())
