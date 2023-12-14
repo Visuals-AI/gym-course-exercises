@@ -22,7 +22,7 @@ class DQN(nn.Module):   # 在 PyTorch 中，nn.Module 是所有神经网络模�
     # 覆盖 nn.Module 中的 forward 方法（前向传播函数）
     # 在 PyTorch 中，只需定义前向传播函数，而后向传播函数（用于计算梯度）是由PyTorch的autograd自动定义的
     def forward(self, x):
-        x = torch.relu(self.fc1(x))     # 应用了第一个全连接层，并对其输出应用了ReLU（修正线性单元）激活函数。ReLU激活函数用于增加网络的非线性，使其能够学习更复杂的函数。
+        x = torch.relu(self.fc1(x))     # 应用了第一个全连接层，并对其输出应用了ReLU（修正线性单元）激活函数
         x = torch.relu(self.fc2(x))     # 对第二个全连接层的输出应用了ReLU激活
         return self.fc3(x)              # 网络返回第三个全连接层的输出。这个输出代表了在给定状态下每个动作的预期Q值
 
