@@ -12,56 +12,78 @@
 # -----------------------------------------------
 
 
+import argparse
 import torch
-import numpy as np
 import gymnasium as gym
-from bean.dqn import DQN
+from bean.train_args import TrainArgs
+from tools.utils import *
 from conf.settings import *
 from color_log.clog import log
 
 
+def arguments() :
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        prog='Gym - Acrobot 测试脚本',
+        description='在默认环境下、使用深度 Q 网络（DQN）验证智能体操作 Acrobot', 
+        epilog='\r\n'.join([
+            '运行环境: python3', 
+            '运行示例: python py/01_Classic_Control/01_Acrobot/test_DQN.py'
+        ])
+    )
+    parser.add_argument('-r', '--render', dest='render', action='store_false', default=True, help='渲染模式: 可以通过 GUI 观察智能体实时交互情况，但是会极大拉低训练效率')
+    parser.add_argument('-c', '--cpu', dest='cpu', action='store_true', default=False, help='强制使用 CPU: 默认情况下，自动优先使用 GPU 训练（除非没有 GPU）')
+    return parser.parse_args()
 
-def main() :
-    env = gym.make('Acrobot-v1', render_mode="human")   # human 表示启动交互界面
-    run_ai(env)
+
+def main(args) :
+    env = gym.make('Acrobot-v1', 
+                    render_mode=("human" if args.render else None)
+    )
+
+    run_ai(args, env)
     
 
-def run_ai(env) :
-    state_size = env.observation_space.shape[0]
-    action_size = env.action_space.n
+def run_ai(args, env) :
+    targs = TrainArgs(args, env, 
+                      eval=True     # 设置为评估模式
+    )
+    
+    targs.model.load_state_dict(         # 加载模型参数  
+                torch.load(ACROBOT_MODEL_PATH)
+            )
+    
+    ACROBOT_V1_MAX_STEP = 200
+    step_counter = 0
 
-    # 创建模型实例
-    model = DQN(state_size, action_size)
+    obs = env.reset()
+    for _ in range(ACROBOT_V1_MAX_STEP) :
 
-    # 加载模型参数
-    model.load_state_dict(torch.load(ACROBOT_MODEL_PATH))
-
-    # 设置为评估模式
-    model.eval()
-
-    # 运行智能体
-    step = 0
-    state = env.reset()
-    for _ in range(1000):  # 设置一个足够长的时间步骤，或者直到环境结束
-        env.render()  # 渲染 GUI，前提是 env 初始化时使用 human 模式
+        # 渲染 GUI（前提是 env 初始化时使用 human 模式）
+        env.render()
         
         # 将当前状态转换为适当的输入格式
-        state = state[0] if isinstance(state, tuple) else state
-        state = torch.from_numpy(state).float().unsqueeze(0)
+        obs = obs[0] if isinstance(obs, tuple) else obs
+        obs = torch.from_numpy(obs).float().unsqueeze(0)
+
+        # state = to_tensor(raw_obs[0], targs)  # 把观测空间状态数组送入神经网络所在的设备
         
+        obs = obs.to(targs.device)
+
         # 使用模型预测动作
         with torch.no_grad():
-            action = model(state).max(1)[1].view(1, 1).item()
+            action = targs.model(obs).max(1)[1].view(1, 1).item()
         
         # 执行动作并获取下一个状态
-        state, _, done, _, _ = env.step(action)
-        step +=1
+        next_obs, _, done, _, _ = env.step(action)
+        step_counter +=1
+        print(step_counter)
         if done:
             break
+        obs = next_obs
 
     env.close()
-    print(step)
     
 
 if __name__ == '__main__' :
-    main()
+    main(arguments())
