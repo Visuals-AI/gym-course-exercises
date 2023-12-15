@@ -90,8 +90,8 @@ def test(targs : TrainArgs, epoch) :
     obs = to_tensor(raw_obs[0], targs)
 
 
-    # Acrobot 问题的 v1 版本要求在 200 步内完成
-    ACROBOT_V1_MAX_STEP = 200
+    # Acrobot 问题的 v1 版本要求在 500 步内完成
+    ACROBOT_V1_MAX_STEP = 500
     step_counter = 0
     for _ in range(ACROBOT_V1_MAX_STEP) :
 
