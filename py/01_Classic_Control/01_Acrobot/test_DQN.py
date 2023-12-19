@@ -12,6 +12,7 @@
 # -----------------------------------------------
 
 
+import re
 import argparse
 import glob
 import torch
@@ -53,14 +54,14 @@ def main(args) :
         percentage = test_model(model_path, args, env)
         percentages[model_path] = percentage
 
-
-
     # 找出成功率最好的模型（不是训练次数越多就多好的，有可能存在过拟合问题）
-    log.info("各个模型的挑战成功率验证如下:")
+    log.info("各个模型的验证如下:")
     optimal_model_path = ''
     max_percentage = 0
-    for model_path, percentage in percentages.items() :
-        log.info(f"模型 [{model_path}] 挑战成功率为: [{percentage:.2f}%]")
+    sorted_model_paths = sorted(percentages, key=extract_number)
+    for model_path in sorted_model_paths :
+        percentage = percentages.get(model_path) or 0
+        log.info(f"  模型 [{os.path.basename(model_path)}] 挑战成功率为: [{percentage:.2f}%]")
         if max_percentage < percentage :
             max_percentage = percentage
             optimal_model_path = model_path
@@ -160,6 +161,12 @@ def test(targs : TrainArgs, epoch) :
         pass
     return is_ok
 
+
+# 自定义排序函数
+def extract_number(filepath) :
+    filename = os.path.basename(filepath)
+    numbers = re.findall(r'\d+', filename)
+    return int(numbers[0]) if numbers else 0
 
 
 if __name__ == '__main__' :
