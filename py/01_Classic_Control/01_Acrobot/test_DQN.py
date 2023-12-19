@@ -40,7 +40,7 @@ def arguments() :
 
 def main(args) :
     model_dir = os.path.dirname(MODEL_PATH_FORMAT)
-    path_pattern = os.path.join(model_dir, MODEL_SUFFIX)
+    path_pattern = os.path.join(model_dir, f"*{MODEL_SUFFIX}")
     model_paths = glob.glob(path_pattern)
 
     # 验证每个模型的成功率
@@ -54,17 +54,20 @@ def main(args) :
         percentages[model_path] = percentage
 
 
+
     # 找出成功率最好的模型（不是训练次数越多就多好的，有可能存在过拟合问题）
+    log.info("各个模型的挑战成功率验证如下:")
     optimal_model_path = ''
     max_percentage = 0
     for model_path, percentage in percentages.items() :
+        log.info(f"模型 [{model_path}] 挑战成功率为: [{percentage:.2f}%]")
         if max_percentage < percentage :
             max_percentage = percentage
             optimal_model_path = model_path
     log.warn(f"最优模型为: [{optimal_model_path}]")
     log.warn(f"挑战成功率为: [{max_percentage:.2f}%]")
-    
 
+    
 
 def test_model(model_path, args, env) :
     '''
@@ -85,7 +88,7 @@ def test_model(model_path, args, env) :
     )
     
     log.info("++++++++++++++++++++++++++++++++++++++++")
-    log.info("开始验证模型: {model_path}")
+    log.info(f"开始验证模型: {model_path}")
     cnt = 0
     for epoch in range(args.epoches) :
         log.debug(f"第 {epoch}/{args.epoches} 回合验证开始 ...")
@@ -150,10 +153,11 @@ def test(targs : TrainArgs, epoch) :
 
     is_ok = False
     if step_counter < ACROBOT_V1_MAX_STEP :
-        log.info(f"[第 {epoch} 回合] 智能体在第 {step_counter} 步完成 Acrobot 挑战")
+        log.debug(f"[第 {epoch} 回合] 智能体在第 {step_counter} 步完成 Acrobot 挑战")
         is_ok = True
     else :
-        log.warn(f"[第 {epoch} 回合] 智能体未能在 {ACROBOT_V1_MAX_STEP} 步内完成 Acrobot 挑战")
+        log.debug(f"[第 {epoch} 回合] 智能体未能在 {ACROBOT_V1_MAX_STEP} 步内完成 Acrobot 挑战")
+        pass
     return is_ok
 
 
