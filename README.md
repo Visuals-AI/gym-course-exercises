@@ -33,13 +33,10 @@
 - 安装 Gym 依赖: `pip install -r requirements.txt`
 
 
+## 0x20 课程练习
 
 
-## 0x20 训练
-
-`python py/01_Classic_Control/01_Acrobot/train_DQN.py`
-
-查看训练模型的过程参数: `tensorboard --logdir=runs`
-
-
+- Classic Control:
+    - Acrobot: [README.md](./py/01_Classic_Control/01_Acrobot/)
+    - Cart Pole: 
 
