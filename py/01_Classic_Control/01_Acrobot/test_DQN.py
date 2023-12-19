@@ -88,12 +88,12 @@ def test_model(model_path, args, env) :
     log.info("开始验证模型: {model_path}")
     cnt = 0
     for epoch in range(args.epoches) :
-        log.info(f"第 {epoch}/{args.epoches} 回合验证开始 ...")
+        log.debug(f"第 {epoch}/{args.epoches} 回合验证开始 ...")
         is_ok = test(targs, epoch + 1)
         cnt += (1 if is_ok else 0)
 
     percentage = (cnt / args.epoches) * 100
-    log.warn(f"已模型 [{os.path.basename(model_path)}] 验证，挑战成功率为: {percentage:.2f}%")
+    log.warn(f"已完成模型 [{os.path.basename(model_path)}] 的验证，挑战成功率为: {percentage:.2f}%")
     log.info("----------------------------------------")
     env.close()
     return percentage
