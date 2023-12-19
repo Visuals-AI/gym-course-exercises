@@ -68,7 +68,7 @@ class CheckpointManager:
         :return: 是否保存了检查点
         '''
         is_save = False
-        if force or (epoch % self.save_interval == 0) :
+        if force or (epoch > 0 and epoch % self.save_interval == 0) :
             log.info(f"已训练 [{epoch}] 回合: ")
 
             checkpoint_path = self.checkpoints_path_format % epoch
