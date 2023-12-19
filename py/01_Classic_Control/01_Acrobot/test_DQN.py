@@ -13,6 +13,7 @@
 
 
 import argparse
+import glob
 import torch
 import gymnasium as gym
 from bean.train_args import TrainArgs
@@ -38,17 +39,37 @@ def arguments() :
 
 
 def main(args) :
-    env = gym.make('Acrobot-v1', 
-                    render_mode=("human" if args.render else None)
-    )   # 验证时如果有需要，可以渲染 GUI 观察实时挑战情况
+    model_dir = os.path.dirname(MODEL_PATH_FORMAT)
+    path_pattern = os.path.join(model_dir, MODEL_SUFFIX)
+    model_paths = glob.glob(path_pattern)
 
-    test_model(args, env)
+    # 验证每个模型的成功率
+    percentages = {}
+    for model_path in model_paths:
+        env = gym.make('Acrobot-v1', 
+                        render_mode=("human" if args.render else None)
+        )   # 验证时如果有需要，可以渲染 GUI 观察实时挑战情况
+
+        percentage = test_model(model_path, args, env)
+        percentages[model_path] = percentage
+
+
+    # 找出成功率最好的模型（不是训练次数越多就多好的，有可能存在过拟合问题）
+    optimal_model_path = ''
+    max_percentage = 0
+    for model_path, percentage in percentages.items() :
+        if max_percentage < percentage :
+            max_percentage = percentage
+            optimal_model_path = model_path
+    log.warn(f"最优模型为: [{optimal_model_path}]")
+    log.warn(f"挑战成功率为: [{max_percentage:.2f}%]")
     
 
 
-def test_model(args, env) :
+def test_model(model_path, args, env) :
     '''
     加载训练好的模型，重复验证，计算通过率。
+    :params: model_path 待验证的模型路径
     :params: args 从命令行传入的训练控制参数
     :params: env 当前交互的环境变量，如 Acrobot
     :return: None
@@ -60,11 +81,11 @@ def test_model(args, env) :
     
     # 加载模型参数  
     targs.model.load_state_dict(         
-        torch.load(ACROBOT_MODEL_PATH)
+        torch.load(model_path)
     )
     
     log.info("++++++++++++++++++++++++++++++++++++++++")
-    log.info("开始验证模型 ...")
+    log.info("开始验证模型: {model_path}")
     cnt = 0
     for epoch in range(args.epoches) :
         log.info(f"第 {epoch}/{args.epoches} 回合验证开始 ...")
@@ -72,9 +93,10 @@ def test_model(args, env) :
         cnt += (1 if is_ok else 0)
 
     percentage = (cnt / args.epoches) * 100
-    log.warn(f"已完成全部验证，挑战成功率为: {percentage:.2f}%")
+    log.warn(f"已模型 [{os.path.basename(model_path)}] 验证，挑战成功率为: {percentage:.2f}%")
     log.info("----------------------------------------")
     env.close()
+    return percentage
 
 
 def test(targs : TrainArgs, epoch) :
