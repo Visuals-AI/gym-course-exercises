@@ -35,20 +35,27 @@ class Checkpoint :
 
 class CheckpointManager:
 
-    def __init__(self, checkpoints_dir=CHECKPOINTS_DIR, 
-                 save_interval=SAVE_CHECKPOINT_INTERVAL) :
+    def __init__(self, model_path_format=MODEL_PATH_FORMAT, 
+                 checkpoints_path_format=CHECKPOINT_PATH_FORMAT, 
+                 save_interval=SAVE_INTERVAL) :
         '''
         初始化检查点管理器
-        :params: checkpoints_dir 存储检查点的目录
-        :params: save_interval 存储检查点的回合数间隔
+        :params: model_path_format 模型的存储路径格式
+        :params: checkpoints_path_format 训练检查点的存储路径格式
+        :params: save_interval 存储回合数间隔
         :return: CheckpointManager
         '''
-        self.checkpoints_dir = checkpoints_dir
+        self.model_path_format = model_path_format
+        self.checkpoints_path_format = checkpoints_path_format
         self.save_interval = save_interval
-        create_dirs(checkpoints_dir)
+
+        self.model_dir = os.path.dirname(model_path_format)
+        self.checkpoints_dir = os.path.dirname(checkpoints_path_format)
+        create_dirs(self.model_dir)
+        create_dirs(self.checkpoints_dir)
 
 
-    def save_checkpoint(self, model, optimizer, epoch, epsilon, info={}) :
+    def save_checkpoint(self, model, optimizer, epoch, epsilon, info={}, force=False) :
         '''
         保存训练检查点。
         但是若未满足训练回合数，不会进行保存。
@@ -57,11 +64,14 @@ class CheckpointManager:
         :params: epoch 已训练回合数
         :params: epsilon 当前探索率
         :params: info 其他附加参数
+        :params: force 强制保存
         :return: 是否保存了检查点
         '''
         is_save = False
-        if epoch % self.save_interval == 0 :
-            checkpoint_path = os.path.join(self.checkpoints_dir, self._checkpoint_name(epoch))
+        if force or (epoch % self.save_interval == 0) :
+            log.info(f"已训练 [{epoch}] 回合: ")
+
+            checkpoint_path = self.checkpoints_path_format % epoch
             torch.save({
                 KEY_MODEL_STATE_DICT: model.state_dict(),
                 KEY_OPTIMIZER_STATE_DICT: optimizer.state_dict(),
@@ -70,7 +80,11 @@ class CheckpointManager:
                 KEY_INFO: info,
             }, checkpoint_path)
             is_save = True
-            log.info(f"已训练 [{epoch}] 回合，自动存储检查点: {checkpoint_path}")
+            log.info(f"  自动存储检查点: {checkpoint_path}")
+
+            model_path = self.model_path_format % epoch
+            torch.save(model.state_dict(), model_path)
+            log.info(f"  自动存储模型: {model_path}")
         return is_save
 
 

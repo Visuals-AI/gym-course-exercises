@@ -37,8 +37,7 @@
 
 ## 0x20 训练
 
-TODO 
-
+`python py/01_Classic_Control/01_Acrobot/train_DQN.py`
 
 查看训练模型的过程参数: `tensorboard --logdir=runs`
 

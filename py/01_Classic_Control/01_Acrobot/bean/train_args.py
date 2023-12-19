@@ -16,16 +16,12 @@ from conf.settings import *
 
 class TrainArgs :
 
-    def __init__(self, args, env, eval=False, 
-                 checkpoints_dir=CHECKPOINTS_DIR, 
-                 save_interval=SAVE_CHECKPOINT_INTERVAL) -> None:
+    def __init__(self, args, env, eval=False) -> None:
         '''
         初始化深度 Q 网络（DQN）算法的环境和模型关键参数。
         :params: args 从命令行传入的训练控制参数
         :params: env 当前交互的环境变量，如 Acrobot
         :params: eval 评估模式，仅用于验证模型
-        :params: checkpoints_dir 存储检查点的目录
-        :params: save_interval 存储检查点的回合数间隔
         :return: TrainArgs
         '''
         self.args = args
@@ -43,10 +39,7 @@ class TrainArgs :
             self.model.eval()   # 评估模式
 
         else :
-            self.cp_mgr = CheckpointManager(            # checkpoint 管理器
-                checkpoints_dir, 
-                save_interval
-            )  
+            self.cp_mgr = CheckpointManager()           # checkpoint 管理器
 
             self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)  # 用于训练神经网络的优化器。这里使用的是Adam优化器，一个流行的梯度下降变种，lr=0.001设置了学习率为0.001。
             self.criterion = nn.MSELoss()                                   # 用于训练过程中的损失函数。这里使用的是均方误差损失（MSE Loss），它是评估神经网络预测值与实际值差异的常用方法。
@@ -102,15 +95,19 @@ class TrainArgs :
     
 
 
-    def save_checkpoint(self, epoch, epsilon, info={}) :
+    def save_checkpoint(self, epoch, epsilon, info={}, force=False) :
         '''
         保存训练检查点。
         但是若未满足训练回合数，不会进行保存。
         :params: epoch 已训练回合数
         :params: epsilon 当前探索率
         :params: info 其他附加参数
+        :params: force 强制保存
         :return: 是否保存了检查点
         '''
+        if force and (epsilon < 0) :
+            epsilon = self.cur_epsilon
+
         return self.cp_mgr.save_checkpoint(
             self.model, 
             self.optimizer, 
@@ -118,7 +115,6 @@ class TrainArgs :
             epsilon, 
             info
         )
-
 
 
     # 每轮训练后对探索率进行衰减。
