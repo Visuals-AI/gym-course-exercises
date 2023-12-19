@@ -33,6 +33,7 @@ def arguments() :
             '运行示例: python py/01_Classic_Control/01_Acrobot/test_DQN.py'
         ])
     )
+    parser.add_argument('-m', '--model', dest='model', type=str, default='', help='验证单个模型的路径；如果为空，则验证所有模型')
     parser.add_argument('-r', '--render', dest='render', action='store_true', default=False, help='渲染模式: 可以通过 GUI 观察智能体实时交互情况，但是会极大拉低训练效率')
     parser.add_argument('-c', '--cpu', dest='cpu', action='store_true', default=False, help='强制使用 CPU: 默认情况下，自动优先使用 GPU 训练（除非没有 GPU）')
     parser.add_argument('-e', '--epoches', dest='epoches', type=int, default=100, help='验证次数')
@@ -40,6 +41,14 @@ def arguments() :
 
 
 def main(args) :
+    if args.model :
+        test_model(args.model, args)
+
+    else :
+        test_models(args)
+
+
+def test_models(args) :
     model_dir = os.path.dirname(MODEL_PATH_FORMAT)
     path_pattern = os.path.join(model_dir, f"*{MODEL_SUFFIX}")
     model_paths = glob.glob(path_pattern)
@@ -47,11 +56,7 @@ def main(args) :
     # 验证每个模型的成功率
     percentages = {}
     for model_path in model_paths:
-        env = gym.make('Acrobot-v1', 
-                        render_mode=("human" if args.render else None)
-        )   # 验证时如果有需要，可以渲染 GUI 观察实时挑战情况
-
-        percentage = test_model(model_path, args, env)
+        percentage = test_model(model_path, args)
         percentages[model_path] = percentage
 
     # 找出成功率最好的模型（不是训练次数越多就多好的，有可能存在过拟合问题）
@@ -70,15 +75,17 @@ def main(args) :
 
     
 
-def test_model(model_path, args, env) :
+def test_model(model_path, args) :
     '''
     加载训练好的模型，重复验证，计算通过率。
     :params: model_path 待验证的模型路径
     :params: args 从命令行传入的训练控制参数
-    :params: env 当前交互的环境变量，如 Acrobot
     :return: None
     '''
 
+    env = gym.make('Acrobot-v1', 
+        render_mode=("human" if args.render else None)  # 验证时如果有需要，可以渲染 GUI 观察实时挑战情况
+    )
     targs = TrainArgs(args, env, 
                       eval=True     # 设置为评估模式
     )
