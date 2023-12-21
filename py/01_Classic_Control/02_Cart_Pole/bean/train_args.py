@@ -40,8 +40,8 @@ class TrainArgs :
         else :
             self.cp_mgr = CheckpointManager(MODEL_NAME) # checkpoint 管理器
 
-            self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)  # 用于训练神经网络的优化器。这里使用的是Adam优化器，一个流行的梯度下降变种，lr=0.001设置了学习率为0.001。
-            self.criterion = nn.MSELoss()                                   # 用于训练过程中的损失函数。这里使用的是均方误差损失（MSE Loss），它是评估神经网络预测值与实际值差异的常用方法。
+            self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr)    # 用于训练神经网络的优化器。这里使用的是Adam优化器，一个流行的梯度下降变种，lr=0.001设置了学习率为0.001。
+            self.criterion = nn.MSELoss()                                       # 用于训练过程中的损失函数。这里使用的是均方误差损失（MSE Loss），它是评估神经网络预测值与实际值差异的常用方法。
 
             self.memory = deque(maxlen=2000)            # 经验回放存储。本质是一个双端队列（deque），当存储超过2000个元素时，最旧的元素将被移除。经验回放是DQN中的一项关键技术，有助于打破经验间的相关性并提高学习的效率和稳定性。
             self.batch_size = args.batch_size           # 从【经验回放存储】中一次抽取并用于训练网络的【经验样本数】

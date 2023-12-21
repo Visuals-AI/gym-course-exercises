@@ -47,6 +47,7 @@ def arguments() :
     parser.add_argument('-z', '--zero', dest='zero', action='store_true', default=False, help='强制从零开始重新训练（不加载上次训练的 checkpoint）')
     parser.add_argument('-e', '--epoches', dest='epoches', type=int, default=10000, help='训练次数: 即训练过程中智能体将经历的总回合数。每个回合是一个从初始状态到终止状态的完整序列')
     parser.add_argument('-g', '--gamma', dest='gamma', type=float, default=0.95, help='折扣因子: 用于折算未来奖励的在当前回合中的价值。一个接近 0 的值表示智能体更重视即时奖励，而接近 1 的值表示智能体更重视长期奖励。')
+    parser.add_argument('-l', '--lr', dest='lr', type=float, default=0.001, help='学习率: 用于训练神经网络的优化器。对于 Adam 优化器使用 0.001 是最优的经验值。较高的学习率可能导致快速学习，但也可能导致过度调整，从而错过最佳值。较低的学习率意味着更慢的学习，但可以提高找到最优解的几率。')
     parser.add_argument('-s', '--epsilon', dest='epsilon', type=float, default=1.0, help='探索率: 用于 epsilon-greedy 策略，它决定了智能体探索新动作的频率。值越高，智能体越倾向于尝试新的、不确定的动作而不是已知的最佳动作。这个值通常在训练初期较高，随着学习的进行逐渐降低')
     parser.add_argument('-d', '--epsilon_decay', dest='epsilon_decay', type=float, default=0.995, help='衰减率: 探索率随时间逐渐减小的速率。每经过一个回合，epsilon 将乘以这个衰减率，从而随着时间的推移减少随机探索的频率')
     parser.add_argument('-m', '--min_epsilon', dest='min_epsilon', type=float, default=0.1, help='最小探索率: 即使经过多次衰减，探索率也不会低于这个值，确保了即使在后期也有一定程度的探索')
