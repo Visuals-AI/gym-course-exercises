@@ -35,8 +35,8 @@ from color_log.clog import log
 def arguments() :
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        prog='Gym - Acrobot 训练脚本',
-        description='在默认环境下、使用深度 Q 网络（DQN）训练智能体操作 Acrobot', 
+        prog='Gym - CartPole 训练脚本',
+        description='在默认环境下、使用深度 Q 网络（DQN）训练智能体操作 CartPole', 
         epilog='\r\n'.join([
             '运行环境: python3', 
             '运行示例: python py/01_Classic_Control/02_Cart_Pole/train_DQN.py'
@@ -64,7 +64,7 @@ def main(args) :
     )
 
     # 实现 “训练算法” 以进行训练
-    # 针对 Acrobot 问题， DQN 算法会更适合：
+    # 针对 CartPole 问题， DQN 算法会更适合：
     #   DQN（Deep Q-Network）是一种将深度学习与强化学习相结合的算法
     #   它主要用于解决具有连续、高维状态空间的问题，特别是那些传统的 Q-learning 算法难以处理的问题。
     #   在 DQN 中，传统 Q-learning 中的 Q 表（一个用于存储所有状态-动作对应价值的巨大表格）被一个深度神经网络所替代。
@@ -76,7 +76,7 @@ def train_dqn(args, env) :
     '''
     使用深度 Q 网络（DQN）算法进行训练。
     :params: args 从命令行传入的训练控制参数
-    :params: env 当前交互的环境变量，如 Acrobot
+    :params: env 当前交互的环境变量，如 CartPole
     :return: None
     '''
     writer = SummaryWriter(logdir=args.tensor_logs) # 训练过程记录器，可用 TensorBoard 查看
@@ -110,7 +110,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     :params: targs 用于训练的环境和模型关键参数
     :return: None
     '''
-    raw_obs = targs.env.reset()         # 重置环境（在 Acrobot 环境中，这个初始状态就是观测空间，它包含了关于 Acrobot 状态的数组，例如两个连杆的角度和角速度等）
+    raw_obs = targs.env.reset()         # 重置环境（在 CartPole 环境中，这个初始状态就是观测空间，它包含了关于 CartPole 状态的数组）
                                         # raw_obs 的第 0 个元素才是状态数组 (array([ 0.9996459 ,  0.02661069,  0.9958208 ,  0.09132832, -0.04581745, -0.06583451], dtype=float32), {})
     obs = to_tensor(raw_obs[0], targs)  # 把观测空间状态数组送入神经网络所在的设备
     
@@ -202,7 +202,7 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
     # log.debug(f"  其他额外信息: {info}")          # 通常用 hash 表附带自定义的额外信息（如诊断信息、调试信息），暂时不需要用到的额外信息。
     
     next_obs = to_tensor(next_raw_obs, targs)      # 把观测空间状态数组送入神经网络所在的设备
-    done = terminated or truncated                 # 在 Acrobot 问题中，如果超过 500 步未达成目标就会中止游戏
+    done = terminated or truncated                 # 在 CartPole 问题中，如果超过 500 步未达成目标就会中止游戏
     return (next_obs, reward, done)
 
 

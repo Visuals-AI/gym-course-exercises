@@ -31,8 +31,8 @@ from color_log.clog import log
 def arguments() :
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        prog='Gym - Acrobot 测试脚本',
-        description='在默认环境下、使用深度 Q 网络（DQN）验证智能体操作 Acrobot', 
+        prog='Gym - CartPole 测试脚本',
+        description='在默认环境下、使用深度 Q 网络（DQN）验证智能体操作 CartPole', 
         epilog='\r\n'.join([
             '运行环境: python3', 
             '运行示例: python py/01_Classic_Control/02_Cart_Pole/test_DQN.py'

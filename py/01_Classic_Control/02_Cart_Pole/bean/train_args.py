@@ -19,7 +19,7 @@ class TrainArgs :
         '''
         初始化深度 Q 网络（DQN）算法的环境和模型关键参数。
         :params: args 从命令行传入的训练控制参数
-        :params: env 当前交互的环境变量，如 Acrobot
+        :params: env 当前交互的环境变量
         :params: eval 评估模式，仅用于验证模型
         :return: TrainArgs
         '''
