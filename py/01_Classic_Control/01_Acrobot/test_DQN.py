@@ -11,6 +11,11 @@
 #   http://incompleteideas.net/book/11/node4.html
 # -----------------------------------------------
 
+# 添加公共库文件的相对位置
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../../libs/')
+# --------------------
 
 import re
 import argparse

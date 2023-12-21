@@ -7,7 +7,6 @@
 
 import re
 import os
-from datetime import datetime
 import torch
 from conf.settings import *
 from tools.utils import *
@@ -35,22 +34,18 @@ class Checkpoint :
 
 class CheckpointManager:
 
-    def __init__(self, model_path_format=MODEL_PATH_FORMAT, 
-                 checkpoints_path_format=CHECKPOINT_PATH_FORMAT, 
-                 save_interval=SAVE_INTERVAL) :
+    def __init__(self, model_name, save_interval=SAVE_INTERVAL) :
         '''
         初始化检查点管理器
-        :params: model_path_format 模型的存储路径格式
-        :params: checkpoints_path_format 训练检查点的存储路径格式
+        :params: model_name 模型名称
         :params: save_interval 存储回合数间隔
         :return: CheckpointManager
         '''
-        self.model_path_format = model_path_format
-        self.checkpoints_path_format = checkpoints_path_format
+        self.model_name = model_name
         self.save_interval = save_interval
 
-        self.model_dir = os.path.dirname(model_path_format)
-        self.checkpoints_dir = os.path.dirname(checkpoints_path_format)
+        self.model_dir = os.path.dirname(get_model_path(model_name))
+        self.checkpoints_dir = os.path.dirname(get_checkpoint_path(model_name))
         create_dirs(self.model_dir)
         create_dirs(self.checkpoints_dir)
 
@@ -71,7 +66,7 @@ class CheckpointManager:
         if force or (epoch > 0 and epoch % self.save_interval == 0) :
             log.info(f"已训练 [{epoch}] 回合: ")
 
-            checkpoint_path = self.checkpoints_path_format % epoch
+            checkpoint_path = get_checkpoint_path(self.model_name, epoch)
             torch.save({
                 KEY_MODEL_STATE_DICT: model.state_dict(),
                 KEY_OPTIMIZER_STATE_DICT: optimizer.state_dict(),
@@ -82,7 +77,7 @@ class CheckpointManager:
             is_save = True
             log.info(f"  自动存储检查点: {checkpoint_path}")
 
-            model_path = self.model_path_format % epoch
+            model_path = get_model_path(self.model_name, epoch)
             torch.save(model.state_dict(), model_path)
             log.info(f"  自动存储模型: {model_path}")
         return is_save
@@ -129,13 +124,3 @@ class CheckpointManager:
             log.warn(f"已加载检查点：{checkpoint_path}")
         return checkpoint
         
-
-    def _checkpoint_name(self, epoch=0) :
-        '''
-        构造检查点名称
-        :params: epoch 已训练回合数
-        :return: 检查点名称
-        '''
-        now = datetime.now().strftime("%Y%m%d%H%M%S")
-        return f'{CHECKPOINT_PREFIX}_{now}_{epoch}{CHECKPOINT_SUFFIX}'
-

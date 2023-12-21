@@ -4,7 +4,6 @@
 # @Time   : 2023/11/25 23:56
 # -----------------------------------------------
 
-import torch
 import torch.nn as nn
 import torch.optim as optim
 from bean.dqn import DQN
@@ -39,7 +38,7 @@ class TrainArgs :
             self.model.eval()   # 评估模式
 
         else :
-            self.cp_mgr = CheckpointManager()           # checkpoint 管理器
+            self.cp_mgr = CheckpointManager(MODEL_NAME) # checkpoint 管理器
 
             self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)  # 用于训练神经网络的优化器。这里使用的是Adam优化器，一个流行的梯度下降变种，lr=0.001设置了学习率为0.001。
             self.criterion = nn.MSELoss()                                   # 用于训练过程中的损失函数。这里使用的是均方误差损失（MSE Loss），它是评估神经网络预测值与实际值差异的常用方法。
