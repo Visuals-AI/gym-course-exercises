@@ -57,9 +57,10 @@ def arguments() :
 
 def main(args) :
     # 创建和配置环境
-    env = gym.make('Acrobot-v1', 
-                    render_mode=("human" if args.render else None)
-    )   # 注意训练时尽量不要渲染 GUI，会极其影响训练效率
+    env = gym.make(ENV_NAME, 
+        # 注意训练时尽量不要渲染 GUI，会极其影响训练效率
+        render_mode=("human" if args.render else None)
+    )
 
     # 实现 “训练算法” 以进行训练
     # 针对 Acrobot 问题， DQN 算法会更适合：

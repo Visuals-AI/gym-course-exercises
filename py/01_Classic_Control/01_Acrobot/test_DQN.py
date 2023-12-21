@@ -88,8 +88,9 @@ def test_model(model_path, args) :
     :return: None
     '''
 
-    env = gym.make('Acrobot-v1', 
-        render_mode=("human" if args.render else None)  # 验证时如果有需要，可以渲染 GUI 观察实时挑战情况
+    env = gym.make(ENV_NAME, 
+        # 验证时如果有需要，可以渲染 GUI 观察实时挑战情况
+        render_mode=("human" if args.render else None)
     )
     targs = TrainArgs(args, env, 
                       eval=True     # 设置为评估模式
@@ -102,14 +103,24 @@ def test_model(model_path, args) :
     
     log.info("++++++++++++++++++++++++++++++++++++++++")
     log.info(f"开始验证模型: {model_path}")
-    cnt = 0
-    for epoch in range(args.epoches) :
+    cnt_ok = 0
+    min_step = MAX_STEP
+    max_step = 0
+    avg_step = 0
+    for epoch in range(1, args.epoches + 1) :
         log.debug(f"第 {epoch}/{args.epoches} 回合验证开始 ...")
-        is_ok = test(targs, epoch + 1)
-        cnt += (1 if is_ok else 0)
+        step = test(targs, epoch)
+        is_ok = (step <= MAX_STEP)
+        cnt_ok += (1 if is_ok else 0)
 
-    percentage = (cnt / args.epoches) * 100
+        min_step = (min_step if min_step < step else step)
+        max_step = (max_step if max_step > step else step)
+        avg_step += step
+
+    avg_step = int(avg_step / args.epoches)
+    percentage = (cnt_ok / args.epoches) * 100
     log.warn(f"已完成模型 [{os.path.basename(model_path)}] 的验证，挑战成功率为: {percentage:.2f}%")
+    log.warn(f"本次验证中，智能体完成挑战的最小步数为 [{min_step}], 最大步数为 [{max_step}], 平均步数为 [{avg_step}]")
     log.info("----------------------------------------")
     env.close()
     return percentage
@@ -128,10 +139,9 @@ def test(targs : TrainArgs, epoch) :
     obs = to_tensor(raw_obs[0], targs)
 
 
-    # Acrobot 问题的 v1 版本要求在 500 步内完成
-    ACROBOT_V1_MAX_STEP = 500
-    step_counter = 0
-    for _ in range(ACROBOT_V1_MAX_STEP) :
+    # 开始验证
+    cnt_step = 0
+    for _ in range(MAX_STEP) :
 
         # 渲染 GUI（前提是 env 初始化时使用 human 模式）
         if targs.render :
@@ -160,18 +170,15 @@ def test(targs : TrainArgs, epoch) :
         if done:
             break
 
-        step_counter +=1
-        # log.debug(f"[第 {epoch} 回合] 已执行 {step_counter} 步: {action}")
+        cnt_step +=1
+        # log.debug(f"[第 {epoch} 回合] 已执行 {cnt_step} 步: {action}")
         
 
-    is_ok = False
-    if step_counter < ACROBOT_V1_MAX_STEP :
-        log.debug(f"[第 {epoch} 回合] 智能体在第 {step_counter} 步完成 Acrobot 挑战")
-        is_ok = True
+    if cnt_step < MAX_STEP :
+        log.debug(f"[第 {epoch} 回合] 智能体在第 {cnt_step} 步完成挑战")
     else :
-        log.debug(f"[第 {epoch} 回合] 智能体未能在 {ACROBOT_V1_MAX_STEP} 步内完成 Acrobot 挑战")
-        pass
-    return is_ok
+        log.debug(f"[第 {epoch} 回合] 智能体未能在 {MAX_STEP} 步内完成挑战")
+    return cnt_step
 
 
 # 自定义排序函数

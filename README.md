@@ -38,5 +38,5 @@
 
 - Classic Control:
     - Acrobot: [README.md](./py/01_Classic_Control/01_Acrobot/)
-    - Cart Pole: 
+    - Cart Pole: [README.md](./py/01_Classic_Control/02_Cart_Pole/)
 
