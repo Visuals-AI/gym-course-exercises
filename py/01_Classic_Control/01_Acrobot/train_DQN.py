@@ -22,6 +22,7 @@ import torch
 import torch.cuda
 import torch.nn.functional as F
 from tensorboardX import SummaryWriter
+import time
 import random
 import numpy as np
 import gymnasium as gym
@@ -92,6 +93,7 @@ def train_dqn(args, env) :
         targs.update_target_model(epoch)        # 更新目标模型
         epsilon = targs.update_epsilon()        # 衰减探索率
         targs.save_checkpoint(epoch, epsilon)   # 保存当次训练的状态和参数（用于断点训练）
+        time.sleep(0.01)
 
     writer.close()
     env.close()

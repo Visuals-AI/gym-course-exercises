@@ -110,7 +110,7 @@ def test_model(model_path, args) :
     for epoch in range(1, args.epoches + 1) :
         log.debug(f"第 {epoch}/{args.epoches} 回合验证开始 ...")
         step = test(targs, epoch)
-        is_ok = (step < MAX_STEP)
+        is_ok = (step >= MAX_STEP)
         cnt_ok += (1 if is_ok else 0)
 
         min_step = (min_step if min_step < step else step)
@@ -175,9 +175,9 @@ def test(targs : TrainArgs, epoch) :
         
 
     if cnt_step < MAX_STEP :
-        log.debug(f"[第 {epoch} 回合] 智能体在第 {cnt_step} 步完成挑战")
+        log.debug(f"[第 {epoch} 回合] 智能体在第 {cnt_step} 步提前结束挑战")
     else :
-        log.debug(f"[第 {epoch} 回合] 智能体未能在 {MAX_STEP} 步内完成挑战")
+        log.debug(f"[第 {epoch} 回合] 智能体挑战坚持 {MAX_STEP} 步成功")
     return cnt_step
 
 
