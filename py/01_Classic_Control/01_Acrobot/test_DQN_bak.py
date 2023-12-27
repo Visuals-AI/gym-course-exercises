@@ -92,6 +92,8 @@ def test_model(model_path, args) :
     env = gym.make(ENV_NAME, 
         # 验证时如果有需要，可以渲染 GUI 观察实时挑战情况
         render_mode=("rgb_array" if args.render else None)
+        # FIXME rgb_array and human
+        # 训练脚本也要 tagger，存储目录不要 video
     )
     targs = TrainArgs(args, env, 
                       eval=True     # 设置为评估模式
