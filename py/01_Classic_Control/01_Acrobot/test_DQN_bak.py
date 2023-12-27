@@ -177,6 +177,8 @@ def test(targs : TrainArgs, epoch) :
             frame = targs.env.render()
             frame_data = _label_with_step_number(frame, cnt_step)
             cv2.imshow("Gym", pil_to_cv2(frame_data))
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
             frames.append(frame_data)
 
         # 使用模型推理下一步的动作
@@ -205,7 +207,7 @@ def test(targs : TrainArgs, epoch) :
         cnt_step +=1
         # log.debug(f"[第 {epoch} 回合] 已执行 {cnt_step} 步: {action}")
         
-    imageio.mimwrite(os.path.join('./out/videos/', f'random_agent_{epoch}.gif'), frames, fps=60)
+    imageio.mimwrite(os.path.join('./out/videos/', f'random_agent_{epoch}.gif'), frames, duration=60)
     if cnt_step < MAX_STEP :
         log.debug(f"[第 {epoch} 回合] 智能体在第 {cnt_step} 步完成挑战")
     else :
