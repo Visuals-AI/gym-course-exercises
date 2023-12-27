@@ -23,16 +23,10 @@ import glob
 import torch
 import gymnasium as gym
 from bean.train_args import TrainArgs
+from bean.tagger import Tagger
 from tools.utils import *
 from conf.settings import *
 from color_log.clog import log
-import cv2
-import os
-import imageio
-import numpy as np
-from PIL import Image
-import PIL.ImageDraw as ImageDraw
-import matplotlib.pyplot as plt  
 
 
 def arguments() :
@@ -58,28 +52,6 @@ def main(args) :
 
     else :
         test_models(args)
-
-def _label_with_step_number(frame, step):
-    im = Image.fromarray(frame)
-
-    drawer = ImageDraw.Draw(im)
-
-    if np.mean(im) < 128:
-        text_color = (255,255,255)
-    else:
-        text_color = (0,0,0)
-    drawer.text((im.size[0]/20,im.size[1]/18), f'step: {step}', fill=text_color)
-
-    return im
-
-def pil_to_cv2(pil_img):
-    '''
-    PIL 图像转 cv2
-    [param] pil_img: PIL图像，PIL.Image
-    :return: cv2图像，numpy.ndarray
-    '''
-    cv2_img = np.array(pil_img)     # 也能被 openpose 识别，但是有色差
-    return cv2.cvtColor(cv2_img, cv2.COLOR_RGB2BGR)
 
 
 def test_models(args) :
@@ -163,56 +135,64 @@ def test(targs : TrainArgs, epoch) :
     :return: 是否完成挑战
     '''
     raw_obs = targs.env.reset()
+    obs = to_tensor(raw_obs[0], targs)  # 把观测空间的初始状态转换为 PyTorch 张量，并送入神经网络所在的设备
 
-    # 把观测空间的初始状态转换为 PyTorch 张量，并送入神经网络所在的设备
-    obs = to_tensor(raw_obs[0], targs)
+    # 用于把过程信息打标显示到 UI 上
+    tagger = Tagger()
 
-    frames = []
     # 开始验证
     cnt_step = 0
     for _ in range(MAX_STEP) :
 
-        # 渲染 GUI（前提是 env 初始化时使用 human 模式）
-        if targs.render :
-            frame = targs.env.render()
-            frame_data = _label_with_step_number(frame, cnt_step)
-            cv2.imshow("Gym", pil_to_cv2(frame_data))
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-            frames.append(frame_data)
-
-        # 使用模型推理下一步的动作
-        with torch.no_grad() :  # no_grad 告诉 PyTorch 在这个块中不要计算梯度。
-                                # 在推理过程中，是使用模型来预测输出，而不是通过反向传播来更新模型的权重。
-            
-            # 传递输入数据到模型
-            model_output = targs.model(obs)
-
-            # 在模型的输出中找到具有最大 Q 值的动作的索引
-            action_index = model_output.max(1)[1]
-
-            # 调整张量形状为 (1, 1)
-            action_index_reshaped = action_index.view(1, 1)
-
-            # 获取单个动作值
-            action = action_index_reshaped.item()
-        
+        # 选择下一步动作
+        action = select_next_action(targs.model, obs)
         
         # 执行动作并获取下一个状态
         next_obs, _, done, _, _ = targs.env.step(action)
         obs = to_tensor(next_obs, targs)
-        if done:
+
+        # 渲染 GUI（前提是 env 初始化时使用 human 模式）
+        if targs.render :
+            frame = targs.env.render()
+
+            labels = [
+                f"epoch: {epoch}", 
+                f"step: {cnt_step}", 
+            ]
+            if tagger.show(frame, labels) :
+                os._exit(0)
+            
+        if done :
             break
 
         cnt_step +=1
         # log.debug(f"[第 {epoch} 回合] 已执行 {cnt_step} 步: {action}")
         
-    imageio.mimwrite(os.path.join('./out/videos/', f'random_agent_{epoch}.gif'), frames, duration=60)
+    tagger.seve_gif(epoch)
     if cnt_step < MAX_STEP :
         log.debug(f"[第 {epoch} 回合] 智能体在第 {cnt_step} 步完成挑战")
     else :
         log.debug(f"[第 {epoch} 回合] 智能体未能在 {MAX_STEP} 步内完成挑战")
     return cnt_step
+
+
+def select_next_action(model, obs) :
+    # 使用模型推理下一步的动作
+    with torch.no_grad() :  # no_grad 告诉 PyTorch 在这个块中不要计算梯度。
+                            # 在推理过程中，是使用模型来预测输出，而不是通过反向传播来更新模型的权重。
+        
+        # 传递输入数据到模型
+        model_output = model(obs)
+
+        # 在模型的输出中找到具有最大 Q 值的动作的索引
+        action_index = model_output.max(1)[1]
+
+        # 调整张量形状为 (1, 1)
+        action_index_reshaped = action_index.view(1, 1)
+
+        # 获取单个动作值
+        action = action_index_reshaped.item()
+    return action
 
 
 # 自定义排序函数
