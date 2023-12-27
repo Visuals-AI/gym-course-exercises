@@ -21,7 +21,6 @@ import re
 import argparse
 import glob
 import torch
-import gymnasium as gym
 from bean.train_args import TrainArgs
 from tools.utils import *
 from conf.settings import *
@@ -90,7 +89,7 @@ def test_model(model_path, args) :
     :return: None
     '''
     # 设置为评估模式
-    targs = TrainArgs(args, eval=True)     
+    targs = TrainArgs(args, eval=True)
     
     # 加载模型参数  
     targs.model.load_state_dict(         
@@ -166,7 +165,12 @@ def test(targs : TrainArgs, epoch) :
 
 
 def select_next_action(model, obs) :
-    # 使用模型推理下一步的动作
+    '''
+    使用模型推理下一步的动作
+    :params: model 被测模型
+    :params: obs 当前观察空间
+    :return: 下一步动作
+    '''
     with torch.no_grad() :  # no_grad 告诉 PyTorch 在这个块中不要计算梯度。
                             # 在推理过程中，是使用模型来预测输出，而不是通过反向传播来更新模型的权重。
         
@@ -184,8 +188,12 @@ def select_next_action(model, obs) :
     return action
 
 
-# 自定义排序函数
 def extract_number(filepath) :
+    '''
+    自定义排序函数
+    :params: filepath 文件路径
+    :return: 文件名字符串的排序模式
+    '''
     filename = os.path.basename(filepath)
     numbers = re.findall(r'\d+', filename)
     return int(numbers[0]) if numbers else 0

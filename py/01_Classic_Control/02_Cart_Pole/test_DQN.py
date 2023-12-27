@@ -21,7 +21,6 @@ import re
 import argparse
 import glob
 import torch
-import gymnasium as gym
 from bean.train_args import TrainArgs
 from tools.utils import *
 from conf.settings import *
@@ -38,8 +37,10 @@ def arguments() :
             '运行示例: python py/01_Classic_Control/02_Cart_Pole/test_DQN.py'
         ])
     )
+    parser.add_argument('-u', '--human', dest='human', action='store_true', default=False, help='渲染模式: 人类模式，帧率较低且无法更改窗体显示内容')
+    parser.add_argument('-a', '--rgb_array', dest='rgb_array', action='store_true', default=False, help='渲染模式: RGB 数组，需要用 OpenCV 等库辅助渲染，可以在每一帧添加定制内容，帧率较高')
+    parser.add_argument('-s', '--save_gif', dest='save_gif', action='store_true', default=False, help='保存每个回合渲染的 UI 到 GIF（仅 rgb_array 模式有效）')
     parser.add_argument('-m', '--model', dest='model', type=str, default='', help='验证单个模型的路径；如果为空，则验证所有模型')
-    parser.add_argument('-r', '--render', dest='render', action='store_true', default=False, help='渲染模式: 可以通过 GUI 观察智能体实时交互情况，但是会极大拉低训练效率')
     parser.add_argument('-c', '--cpu', dest='cpu', action='store_true', default=False, help='强制使用 CPU: 默认情况下，自动优先使用 GPU 训练（除非没有 GPU）')
     parser.add_argument('-e', '--epoches', dest='epoches', type=int, default=100, help='验证次数')
     return parser.parse_args()
@@ -87,14 +88,8 @@ def test_model(model_path, args) :
     :params: args 从命令行传入的训练控制参数
     :return: None
     '''
-
-    env = gym.make(ENV_NAME, 
-        # 验证时如果有需要，可以渲染 GUI 观察实时挑战情况
-        render_mode=("human" if args.render else None)
-    )
-    targs = TrainArgs(args, env, 
-                      eval=True     # 设置为评估模式
-    )
+    # 设置为评估模式
+    targs = TrainArgs(args, eval=True)
     
     # 加载模型参数  
     targs.model.load_state_dict(         
@@ -122,7 +117,7 @@ def test_model(model_path, args) :
     log.warn(f"已完成模型 [{os.path.basename(model_path)}] 的验证，挑战成功率为: {percentage:.2f}%")
     log.warn(f"本次验证中，智能体完成挑战的最小步数为 [{min_step}], 最大步数为 [{max_step}], 平均步数为 [{avg_step}]")
     log.info("----------------------------------------")
-    env.close()
+    targs.close_env()
     return percentage
 
 
@@ -134,45 +129,33 @@ def test(targs : TrainArgs, epoch) :
     :return: 是否完成挑战
     '''
     raw_obs = targs.env.reset()
-
-    # 把观测空间的初始状态转换为 PyTorch 张量，并送入神经网络所在的设备
-    obs = to_tensor(raw_obs[0], targs)
-
+    obs = to_tensor(raw_obs[0], targs)  # 把观测空间的初始状态转换为 PyTorch 张量，并送入神经网络所在的设备
 
     # 开始验证
     cnt_step = 0
     for _ in range(MAX_STEP) :
 
-        # 渲染 GUI（前提是 env 初始化时使用 human 模式）
-        if targs.render :
-            targs.env.render()
-
-        # 使用模型推理下一步的动作
-        with torch.no_grad() :  # no_grad 告诉 PyTorch 在这个块中不要计算梯度。
-                                # 在推理过程中，是使用模型来预测输出，而不是通过反向传播来更新模型的权重。
-            
-            # 传递输入数据到模型
-            model_output = targs.model(obs)
-
-            # 在模型的输出中找到具有最大 Q 值的动作的索引
-            action_index = model_output.max(1)[1]
-
-            # 调整张量形状为 (1, 1)
-            action_index_reshaped = action_index.view(1, 1)
-
-            # 获取单个动作值
-            action = action_index_reshaped.item()
-        
+        # 选择下一步动作
+        action = select_next_action(targs.model, obs)
         
         # 执行动作并获取下一个状态
         next_obs, _, done, _, _ = targs.env.step(action)
         obs = to_tensor(next_obs, targs)
-        if done:
-            break
 
+        # 渲染 GUI
         cnt_step +=1
+        labels = [
+            f"epoch: {epoch}", 
+            f"step: {cnt_step}", 
+        ]
+        targs.render(labels)
+
         # log.debug(f"[第 {epoch} 回合] 已执行 {cnt_step} 步: {action}")
+        if done :
+            break
         
+    # 保存智能体这个回合渲染的动作 UI
+    targs.save_render_ui(epoch)
 
     if cnt_step < MAX_STEP :
         log.debug(f"[第 {epoch} 回合] 智能体在第 {cnt_step} 步提前结束挑战")
@@ -181,8 +164,36 @@ def test(targs : TrainArgs, epoch) :
     return cnt_step
 
 
-# 自定义排序函数
+def select_next_action(model, obs) :
+    '''
+    使用模型推理下一步的动作
+    :params: model 被测模型
+    :params: obs 当前观察空间
+    :return: 下一步动作
+    '''
+    with torch.no_grad() :  # no_grad 告诉 PyTorch 在这个块中不要计算梯度。
+                            # 在推理过程中，是使用模型来预测输出，而不是通过反向传播来更新模型的权重。
+        
+        # 传递输入数据到模型
+        model_output = model(obs)
+
+        # 在模型的输出中找到具有最大 Q 值的动作的索引
+        action_index = model_output.max(1)[1]
+
+        # 调整张量形状为 (1, 1)
+        action_index_reshaped = action_index.view(1, 1)
+
+        # 获取单个动作值
+        action = action_index_reshaped.item()
+    return action
+
+
 def extract_number(filepath) :
+    '''
+    自定义排序函数
+    :params: filepath 文件路径
+    :return: 文件名字符串的排序模式
+    '''
     filename = os.path.basename(filepath)
     numbers = re.findall(r'\d+', filename)
     return int(numbers[0]) if numbers else 0

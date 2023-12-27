@@ -25,7 +25,6 @@ from tensorboardX import SummaryWriter
 import time
 import random
 import numpy as np
-import gymnasium as gym
 from bean.train_args import TrainArgs
 from bean.transition import Transition
 from tools.utils import *
@@ -74,8 +73,7 @@ def main(args) :
 def train_dqn(targs: TrainArgs) :
     '''
     使用深度 Q 网络（DQN）算法进行训练。
-    :params: args 从命令行传入的训练控制参数
-    :params: env 当前交互的环境变量，如 Acrobot
+    :params: targs 用于训练的环境和模型关键参数
     :return: None
     '''
     writer = SummaryWriter(logdir=targs.tensor_logs)    # 训练过程记录器，可用 TensorBoard 查看
