@@ -80,7 +80,7 @@ class Tagger :
 
 
 
-    def seve_gif(self, epoch) :
+    def save_ui(self, epoch) :
         path = os.path.join('./out/videos/', f'random_agent_{epoch}.gif')
         fps = 60
         imageio.mimwrite(path, self.frames, duration=fps)

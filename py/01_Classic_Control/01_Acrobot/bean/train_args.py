@@ -4,18 +4,21 @@
 # @Time   : 2023/11/25 23:56
 # -----------------------------------------------
 
+import os
+import gymnasium as gym
 import torch.nn as nn
 import torch.optim as optim
 from bean.dqn import DQN
 from collections import deque
 from tools.utils import scan_device
+from bean.tagger import Tagger
 from bean.checkpoint import CheckpointManager
 from conf.settings import *
 
 
 class TrainArgs :
 
-    def __init__(self, args, env, eval=False) -> None:
+    def __init__(self, args, eval=False) -> None:
         '''
         初始化深度 Q 网络（DQN）算法的环境和模型关键参数。
         :params: args 从命令行传入的训练控制参数
@@ -24,11 +27,11 @@ class TrainArgs :
         :return: TrainArgs
         '''
         self.args = args
-        self.env = env
-        self.render = args.render                           # 渲染 GUI 开关
+        self.env = self.create_env(ENV_NAME)
+        self.tagger = Tagger()      # 用于把过程信息标记显示到 UI 上
         
-        self.obs_size = env.observation_space.shape[0]      # 状态空间维度
-        self.action_size = env.action_space.n               # 动作空间数量
+        self.obs_size = self.env.observation_space.shape[0] # 状态空间维度
+        self.action_size = self.env.action_space.n          # 动作空间数量
 
         self.model = DQN(self.obs_size, self.action_size)   # DQN 简单的三层网络模型（主模型）
         self.device = scan_device(args.cpu)                 # 检查 GPU 是否可用
@@ -54,6 +57,7 @@ class TrainArgs :
             self.min_epsilon = args.min_epsilon         # 最小探索率
             self.gamma = args.gamma                     # 折扣因子
             self.info = {}                              # 其他额外参数
+            self.tensor_logs = args.tensor_logs         # TensorBoard 日志目录
 
             # 在 DQN 中，通常会使用两个模型：
             #   一个是用于进行实际决策的主模型（self.model）： 用于生成当前的 Q 值
@@ -62,6 +66,51 @@ class TrainArgs :
             self.target_model.to(self.device)                           # 将模型移动到 GPU （或 CPU）
             self.update_target_every = 5                                # 定义更新目标模型的频率
 
+
+    def create_env(self, env_name) :
+        '''
+        创建和配置环境
+        https://gymnasium.farama.org/api/env/
+        https://panda-gym.readthedocs.io/en/latest/usage/advanced_rendering.html
+        :return: 预设环境
+        '''
+        # 注意训练时尽量不要渲染 GUI，会极其影响训练效率
+        if self.args.human :
+            env = gym.make(env_name, render_mode="human")
+
+        elif self.args.rgb_array :
+            env = gym.make(env_name, render_mode="rgb_array")
+
+        else :
+            env = gym.make(env_name)
+        return env
+
+
+    def render(self, labels=[]) :
+        '''
+        渲染 UI
+        :params: labels 渲染 UI 时附加到左上角的信息（仅 rgb_array 模式下有效）
+        :return: frame 渲染的当前帧（若纯后台执行返回 None）
+        '''
+        frame = None
+        if self.args.human :
+            frame = self.env.render()
+
+        elif self.args.rgb_array :
+            frame = self.env.render()
+            if self.tagger.show(frame, labels) :
+                os._exit(0)
+        return frame
+    
+
+    def save_render_ui(self, epoch) :
+        '''
+        保存智能体第 epoch 回合渲染的动作 UI 到 GIF
+        :params: epoch 回合数
+        :return: None
+        '''
+        self.tagger.save_ui(epoch)
+    
 
     def update_target_model(self, epoch):
         '''
@@ -91,7 +140,6 @@ class TrainArgs :
             self.model.load_state_dict(last_cp.model_state_dict)
             self.optimizer.load_state_dict(last_cp.optimizer_state_dict)
         return
-    
 
 
     def save_checkpoint(self, epoch, epsilon, info={}, force=False) :

@@ -43,7 +43,8 @@ def arguments() :
             '运行示例: python py/01_Classic_Control/01_Acrobot/train_DQN.py'
         ])
     )
-    parser.add_argument('-r', '--render', dest='render', action='store_true', default=False, help='渲染模式: 可以通过 GUI 观察智能体实时交互情况，但是会极大拉低训练效率')
+    parser.add_argument('-u', '--human', dest='human', action='store_true', default=False, help='渲染模式: 人类模式，帧率较低且无法更改窗体显示内容')
+    parser.add_argument('-a', '--rgb_array', dest='rgb_array', action='store_true', default=False, help='渲染模式: RGB 数组，需要用 OpenCV 等库辅助渲染，可以在每一帧添加定制内容，帧率较高')
     parser.add_argument('-c', '--cpu', dest='cpu', action='store_true', default=False, help='强制使用 CPU: 默认情况下，自动优先使用 GPU 训练（除非没有 GPU）')
     parser.add_argument('-z', '--zero', dest='zero', action='store_true', default=False, help='强制从零开始重新训练（不加载上次训练的 checkpoint）')
     parser.add_argument('-e', '--epoches', dest='epoches', type=int, default=10000, help='训练次数: 即训练过程中智能体将经历的总回合数。每个回合是一个从初始状态到终止状态的完整序列')
@@ -58,11 +59,8 @@ def arguments() :
 
 
 def main(args) :
-    # 创建和配置环境
-    env = gym.make(ENV_NAME, 
-        # 注意训练时尽量不要渲染 GUI，会极其影响训练效率
-        render_mode=("human" if args.render else None)
-    )
+    # 初始化训练环境和参数
+    targs = TrainArgs(args)
 
     # 实现 “训练算法” 以进行训练
     # 针对 Acrobot 问题， DQN 算法会更适合：
@@ -70,24 +68,23 @@ def main(args) :
     #   它主要用于解决具有连续、高维状态空间的问题，特别是那些传统的 Q-learning 算法难以处理的问题。
     #   在 DQN 中，传统 Q-learning 中的 Q 表（一个用于存储所有状态-动作对应价值的巨大表格）被一个深度神经网络所替代。
     #   这个神经网络被训练来预测给定状态和动作下的 Q 值
-    train_dqn(args, env)
+    train_dqn(targs)
 
 
-def train_dqn(args, env) :
+def train_dqn(targs: TrainArgs) :
     '''
     使用深度 Q 网络（DQN）算法进行训练。
     :params: args 从命令行传入的训练控制参数
     :params: env 当前交互的环境变量，如 Acrobot
     :return: None
     '''
-    writer = SummaryWriter(logdir=args.tensor_logs) # 训练过程记录器，可用 TensorBoard 查看
-    targs = TrainArgs(args, env)                    # 初始化训练参数
-    targs.load_last_checkpoint()                    # 加载最后一次训练的状态和参数
+    writer = SummaryWriter(logdir=targs.tensor_logs)    # 训练过程记录器，可用 TensorBoard 查看
+    targs.load_last_checkpoint()                        # 加载最后一次训练的状态和参数
 
     log.info("++++++++++++++++++++++++++++++++++++++++")
     log.info("开始训练 ...")
-    for epoch in range(targs.last_epoch, args.epoches) :
-        log.info(f"第 {epoch}/{args.epoches} 回合训练开始 ...")
+    for epoch in range(targs.last_epoch, targs.epoches) :
+        log.info(f"第 {epoch}/{targs.epoches} 回合训练开始 ...")
         train(writer, targs, epoch)
 
         targs.update_target_model(epoch)        # 更新目标模型
@@ -96,10 +93,10 @@ def train_dqn(args, env) :
         time.sleep(0.01)
 
     writer.close()
-    env.close()
+    targs.env.close()
     log.warn("已完成全部训练")
 
-    targs.save_checkpoint(args.epoches, -1, True)
+    targs.save_checkpoint(targs.epoches, -1, True)
     log.info("----------------------------------------")
 
 
@@ -115,10 +112,6 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     raw_obs = targs.env.reset()         # 重置环境（在Acrobot环境中，这个初始状态就是观测空间，它包含了关于 Acrobot 状态的数组，例如两个连杆的角度和角速度等）
                                         # raw_obs 的第 0 个元素才是状态数组 (array([ 0.9996459 ,  0.02661069,  0.9958208 ,  0.09132832, -0.04581745, -0.06583451], dtype=float32), {})
     obs = to_tensor(raw_obs[0], targs)  # 把观测空间状态数组送入神经网络所在的设备
-    
-    # 渲染训练时的 GUI （必须在 reset 方法后执行）
-    if targs.render :
-        targs.env.render()
     
     total_reward = 0                # 累计智能体从环境中获得的总奖励。在每个训练回合结束时，total_reward 将反映智能体在该回合中的总体表现。奖励越高，意味着智能体的性能越好。
     total_loss = 0                  # 累计损失率。反映了预测 Q 值和目标 Q 值之间的差异
@@ -139,6 +132,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         obs = next_obs          # 更新当前状态
         total_reward += reward  # 累计奖励（每一步的奖励是 env 决定的，由于 env 使用默认环境，所以这里无法调整每一步的奖励）
         step_counter += 1       # 累计步数
+        targs.render()          # 渲染训练时的 GUI （必须在 reset 方法后执行）
         if done:
             break
 

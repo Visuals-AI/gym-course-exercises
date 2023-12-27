@@ -23,7 +23,6 @@ import glob
 import torch
 import gymnasium as gym
 from bean.train_args import TrainArgs
-from bean.tagger import Tagger
 from tools.utils import *
 from conf.settings import *
 from color_log.clog import log
@@ -39,8 +38,9 @@ def arguments() :
             '运行示例: python py/01_Classic_Control/01_Acrobot/test_DQN.py'
         ])
     )
+    parser.add_argument('-u', '--human', dest='human', action='store_true', default=False, help='渲染模式: 人类模式，帧率较低且无法更改窗体显示内容')
+    parser.add_argument('-a', '--rgb_array', dest='rgb_array', action='store_true', default=False, help='渲染模式: RGB 数组，需要用 OpenCV 等库辅助渲染，可以在每一帧添加定制内容，帧率较高')
     parser.add_argument('-m', '--model', dest='model', type=str, default='', help='验证单个模型的路径；如果为空，则验证所有模型')
-    parser.add_argument('-r', '--render', dest='render', action='store_true', default=False, help='渲染模式: 可以通过 GUI 观察智能体实时交互情况，但是会极大拉低训练效率')
     parser.add_argument('-c', '--cpu', dest='cpu', action='store_true', default=False, help='强制使用 CPU: 默认情况下，自动优先使用 GPU 训练（除非没有 GPU）')
     parser.add_argument('-e', '--epoches', dest='epoches', type=int, default=100, help='验证次数')
     return parser.parse_args()
@@ -88,16 +88,8 @@ def test_model(model_path, args) :
     :params: args 从命令行传入的训练控制参数
     :return: None
     '''
-
-    env = gym.make(ENV_NAME, 
-        # 验证时如果有需要，可以渲染 GUI 观察实时挑战情况
-        render_mode=("rgb_array" if args.render else None)
-        # FIXME rgb_array and human
-        # 训练脚本也要 tagger，存储目录不要 video
-    )
-    targs = TrainArgs(args, env, 
-                      eval=True     # 设置为评估模式
-    )
+    # 设置为评估模式
+    targs = TrainArgs(args, eval=True)     
     
     # 加载模型参数  
     targs.model.load_state_dict(         
@@ -125,7 +117,7 @@ def test_model(model_path, args) :
     log.warn(f"已完成模型 [{os.path.basename(model_path)}] 的验证，挑战成功率为: {percentage:.2f}%")
     log.warn(f"本次验证中，智能体完成挑战的最小步数为 [{min_step}], 最大步数为 [{max_step}], 平均步数为 [{avg_step}]")
     log.info("----------------------------------------")
-    env.close()
+    targs.env.close()
     return percentage
 
 
@@ -139,9 +131,6 @@ def test(targs : TrainArgs, epoch) :
     raw_obs = targs.env.reset()
     obs = to_tensor(raw_obs[0], targs)  # 把观测空间的初始状态转换为 PyTorch 张量，并送入神经网络所在的设备
 
-    # 用于把过程信息打标显示到 UI 上
-    tagger = Tagger()
-
     # 开始验证
     cnt_step = 0
     for _ in range(MAX_STEP) :
@@ -153,24 +142,19 @@ def test(targs : TrainArgs, epoch) :
         next_obs, _, done, _, _ = targs.env.step(action)
         obs = to_tensor(next_obs, targs)
 
-        # 渲染 GUI（前提是 env 初始化时使用 human 模式）
-        if targs.render :
-            frame = targs.env.render()
+        # 渲染 GUI
+        cnt_step +=1
+        labels = [
+            f"epoch: {epoch}", 
+            f"step: {cnt_step}", 
+        ]
+        targs.render(labels)
 
-            labels = [
-                f"epoch: {epoch}", 
-                f"step: {cnt_step}", 
-            ]
-            if tagger.show(frame, labels) :
-                os._exit(0)
-            
+        # log.debug(f"[第 {epoch} 回合] 已执行 {cnt_step} 步: {action}")
         if done :
             break
-
-        cnt_step +=1
-        # log.debug(f"[第 {epoch} 回合] 已执行 {cnt_step} 步: {action}")
         
-    tagger.seve_gif(epoch)
+    # targs.save_render_ui(epoch)
     if cnt_step < MAX_STEP :
         log.debug(f"[第 {epoch} 回合] 智能体在第 {cnt_step} 步完成挑战")
     else :
