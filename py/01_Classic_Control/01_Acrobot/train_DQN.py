@@ -93,7 +93,7 @@ def train_dqn(targs: TrainArgs) :
         time.sleep(0.01)
 
     writer.close()
-    targs.env.close()
+    targs.close_env()
     log.warn("已完成全部训练")
 
     targs.save_checkpoint(targs.epoches, -1, True)

@@ -40,6 +40,7 @@ def arguments() :
     )
     parser.add_argument('-u', '--human', dest='human', action='store_true', default=False, help='渲染模式: 人类模式，帧率较低且无法更改窗体显示内容')
     parser.add_argument('-a', '--rgb_array', dest='rgb_array', action='store_true', default=False, help='渲染模式: RGB 数组，需要用 OpenCV 等库辅助渲染，可以在每一帧添加定制内容，帧率较高')
+    parser.add_argument('-s', '--save_gif', dest='save_gif', action='store_true', default=False, help='保存每个回合渲染的 UI 到 GIF（仅 rgb_array 模式有效）')
     parser.add_argument('-m', '--model', dest='model', type=str, default='', help='验证单个模型的路径；如果为空，则验证所有模型')
     parser.add_argument('-c', '--cpu', dest='cpu', action='store_true', default=False, help='强制使用 CPU: 默认情况下，自动优先使用 GPU 训练（除非没有 GPU）')
     parser.add_argument('-e', '--epoches', dest='epoches', type=int, default=100, help='验证次数')
@@ -117,7 +118,7 @@ def test_model(model_path, args) :
     log.warn(f"已完成模型 [{os.path.basename(model_path)}] 的验证，挑战成功率为: {percentage:.2f}%")
     log.warn(f"本次验证中，智能体完成挑战的最小步数为 [{min_step}], 最大步数为 [{max_step}], 平均步数为 [{avg_step}]")
     log.info("----------------------------------------")
-    targs.env.close()
+    targs.close_env()
     return percentage
 
 
@@ -155,7 +156,7 @@ def test(targs : TrainArgs, epoch) :
             break
     
     # 保存智能体这个回合渲染的动作 UI
-    # targs.save_render_ui(epoch)
+    targs.save_render_ui(epoch)
         
     if cnt_step < MAX_STEP :
         log.debug(f"[第 {epoch} 回合] 智能体在第 {cnt_step} 步完成挑战")

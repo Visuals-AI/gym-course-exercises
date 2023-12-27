@@ -11,17 +11,26 @@ import imageio
 import numpy as np
 from PIL import Image
 import PIL.ImageDraw as ImageDraw
+from conf.settings import *
+from tools.utils import *
 
 
 class Tagger :
 
-    def __init__(self) -> None :
-        self.win_title = 'Gym'
-        self.exit_button = ord('q')
+    def __init__(self, env_name='Gym') -> None :
+        self.win_title = f"{env_name} ['Q' for exit]"
+        self.exit_button = ord('Q')
+        self.fps = 60
         self.frames = []
 
 
     def show(self, frame, labels=[]) :
+        '''
+        在指定帧的图像中添加信息标签、并渲染显示
+        :params: frame 通过 env.render() 得到的帧，需要为 rgb_array 模式
+        :params: labels 期望添加的标签
+        :return: PIL 图像
+        '''
         pil_img = self._add_labels(frame, labels)
         cv2_img = self._pil_to_cv2(pil_img)
 
@@ -35,12 +44,11 @@ class Tagger :
 
     def _add_labels(self, frame, labels=[]) :
         '''
-        初始化检查点管理器
+        在指定帧的图像中添加信息标签
         :params: frame 通过 env.render() 得到的帧，需要为 rgb_array 模式
         :params: labels 期望添加的标签
         :return: PIL 图像
         '''
-
         # 把 gym 环境返回的渲染帧，转换为 PIL 图像
         image = Image.fromarray(frame)
         font_color = self._get_font_color(image)
@@ -54,6 +62,11 @@ class Tagger :
     
 
     def _get_font_color(self, image: Image) :
+        '''
+        根据图像整体颜色的明暗情况，返回人类可见的文字 RGB 颜色
+        :params: image PIL 图像
+        :return: RGB 颜色
+        '''
         # 默认文字颜色为白色
         font_color = (0, 0, 0)
 
@@ -64,6 +77,11 @@ class Tagger :
     
 
     def _get_font_pos(self, image: Image) :
+        '''
+        返回图片左上角（距离 left 1/20、 top 1/18）的位置坐标作为文字信息位置
+        :params: image PIL 图像
+        :return: pos 文字信息位置
+        '''
         # 把信息放在图像左上角（距离 left 1/20、 top 1/18 的位置）
         pos = (image.size[0]/20, image.size[1]/18) 
         return pos
@@ -72,7 +90,7 @@ class Tagger :
     def _pil_to_cv2(self, pil_img):
         '''
         PIL 图像转 cv2 图像
-        [param] pil_img: PIL图像，PIL.Image
+        :params: pil_img PIL 图像，PIL.Image
         :return: cv2 图像，numpy.ndarray
         '''
         cv2_img = np.array(pil_img)
@@ -81,6 +99,12 @@ class Tagger :
 
 
     def save_ui(self, epoch) :
-        path = os.path.join('./out/videos/', f'random_agent_{epoch}.gif')
-        fps = 60
-        imageio.mimwrite(path, self.frames, duration=fps)
+        '''
+        保存智能体第 epoch 回合渲染的动作 UI 到 GIF
+        :params: epoch 回合数
+        :return: None
+        '''
+        path = get_render_ui_path(MODEL_NAME, epoch)
+        dir = os.path.dirname(path)
+        create_dirs(dir)
+        imageio.mimwrite(path, self.frames, duration=self.fps)

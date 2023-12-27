@@ -28,7 +28,7 @@ class TrainArgs :
         '''
         self.args = args
         self.env = self.create_env(ENV_NAME)
-        self.tagger = Tagger()      # 用于把过程信息标记显示到 UI 上
+        self.tagger = Tagger(ENV_NAME)      # 用于把过程信息标记显示到 UI 上
         
         self.obs_size = self.env.observation_space.shape[0] # 状态空间维度
         self.action_size = self.env.action_space.n          # 动作空间数量
@@ -86,6 +86,14 @@ class TrainArgs :
         return env
 
 
+    def close_env(self) :
+        '''
+        关闭预设环境
+        :return: None
+        '''
+        self.env.close()
+
+
     def render(self, labels=[]) :
         '''
         渲染 UI
@@ -109,7 +117,8 @@ class TrainArgs :
         :params: epoch 回合数
         :return: None
         '''
-        self.tagger.save_ui(epoch)
+        if self.args.save_gif :
+            self.tagger.save_ui(epoch)
     
 
     def update_target_model(self, epoch):
