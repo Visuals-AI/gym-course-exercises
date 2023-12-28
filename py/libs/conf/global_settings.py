@@ -30,6 +30,7 @@ def get_tensor_path(model_name) :
 
 # 渲染 UI 保存位置
 RENDER_UI_DIR = './out/ui'
-def get_render_ui_path(model_name, epoch=0) :
-    return f"{RENDER_UI_DIR}/{model_name}/{model_name}_ui_epoch_{epoch}.gif"
-
+def get_render_ui_path(model_name, epoch=0, eval=False) :
+    subdir = "test" if eval else "train"
+    return f"{RENDER_UI_DIR}/{model_name}/{subdir}/{model_name}_ui_epoch_{epoch}.gif"
+    

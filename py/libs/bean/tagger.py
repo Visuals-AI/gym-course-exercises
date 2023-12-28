@@ -17,8 +17,15 @@ from tools.utils import *
 
 class Tagger :
 
-    def __init__(self, env_name='Gym') -> None :
+    def __init__(self, env_name='Gym', eval=False) -> None :
+        '''
+        初始化标签记录器
+        :params: env_name 环境名称，用于窗口显示名字
+        :params: eval true: 评估模式； False: 训练模式
+        :return: Tagger
+        '''
         self.win_title = f"{env_name} ['Q' for exit]"
+        self.eval = eval
         self.exit_button = ord('Q')
         self.fps = 60
         self.frames = []
@@ -112,7 +119,7 @@ class Tagger :
         :params: epoch 回合数
         :return: None
         '''
-        path = get_render_ui_path(MODEL_NAME, epoch)
+        path = get_render_ui_path(MODEL_NAME, epoch, self.eval)
         dir = os.path.dirname(path)
         create_dirs(dir)
         imageio.mimwrite(path, self.frames, duration=self.fps)

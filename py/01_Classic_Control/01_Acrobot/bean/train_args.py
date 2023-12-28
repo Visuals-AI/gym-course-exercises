@@ -28,7 +28,6 @@ class TrainArgs :
         '''
         self.args = args
         self.env = self.create_env(ENV_NAME)
-        self.tagger = Tagger(ENV_NAME)      # 用于把过程信息标记显示到 UI 上
         
         self.obs_size = self.env.observation_space.shape[0] # 状态空间维度
         self.action_size = self.env.action_space.n          # 动作空间数量
@@ -38,9 +37,11 @@ class TrainArgs :
         self.model.to(self.device)                          # 将模型和优化器移动到 GPU （或 CPU）
 
         if eval :
+            self.tagger = Tagger(ENV_NAME, True)
             self.model.eval()   # 评估模式
 
         else :
+            self.tagger = Tagger(ENV_NAME, False)
             self.cp_mgr = CheckpointManager(MODEL_NAME) # checkpoint 管理器
 
             self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr)    # 用于训练神经网络的优化器。这里使用的是 Adam 优化器，一个流行的梯度下降变种，lr=0.001设置了学习率为0.001。
