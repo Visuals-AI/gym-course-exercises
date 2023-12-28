@@ -24,6 +24,14 @@ class Tagger :
         self.frames = []
 
 
+    def reset(self) :
+        '''
+        清空已记录的帧
+        :return: None
+        '''
+        self.frames.clear()
+
+
     def show(self, frame, labels=[]) :
         '''
         在指定帧的图像中添加信息标签、并渲染显示

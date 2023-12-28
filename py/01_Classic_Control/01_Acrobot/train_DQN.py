@@ -107,7 +107,8 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     :params: targs 用于训练的环境和模型关键参数
     :return: None
     '''
-    raw_obs = targs.env.reset()         # 重置环境（在Acrobot环境中，这个初始状态就是观测空间，它包含了关于 Acrobot 状态的数组，例如两个连杆的角度和角速度等）
+    targs.reset_render_cache()
+    raw_obs = targs.reset_env()         # 重置环境（在Acrobot环境中，这个初始状态就是观测空间，它包含了关于 Acrobot 状态的数组，例如两个连杆的角度和角速度等）
                                         # raw_obs 的第 0 个元素才是状态数组 (array([ 0.9996459 ,  0.02661069,  0.9958208 ,  0.09132832, -0.04581745, -0.06583451], dtype=float32), {})
     obs = to_tensor(raw_obs[0], targs)  # 把观测空间状态数组送入神经网络所在的设备
     
@@ -136,6 +137,9 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
 
         dqn(targs, total_loss)  # DQN 学习（核心算法，从【经验回放存储】中收集经验）
     # while end
+
+    # 保存智能体这个回合渲染的动作 UI
+    targs.save_render_ui(epoch)
 
     finish_time = current_seconds() - bgn_time
     log.info(f"第 {epoch}/{targs.epoches} 回合 完成，累计步数={step_counter} 步, 耗时={finish_time}s, 奖励={total_reward}, 探索率={targs.cur_epsilon}")

@@ -94,7 +94,7 @@ def train_dqn(targs: TrainArgs) :
     targs.close_env()
     log.warn("已完成全部训练")
 
-    targs.save_checkpoint(args.epoches, -1, True)
+    targs.save_checkpoint(targs.epoches, -1, True)
     log.info("----------------------------------------")
 
 
@@ -107,7 +107,8 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     :params: targs 用于训练的环境和模型关键参数
     :return: None
     '''
-    raw_obs = targs.env.reset()         # 重置环境（在 CartPole 环境中，这个初始状态就是观测空间，它包含了关于 CartPole 状态的数组）
+    targs.reset_render_cache()
+    raw_obs = targs.reset_env()         # 重置环境（在 CartPole 环境中，这个初始状态就是观测空间，它包含了关于 CartPole 状态的数组）
                                         # raw_obs 的第 0 个元素才是状态数组 (array([ 0.9996459 ,  0.02661069,  0.9958208 ,  0.09132832, -0.04581745, -0.06583451], dtype=float32), {})
     obs = to_tensor(raw_obs[0], targs)  # 把观测空间状态数组送入神经网络所在的设备
     
@@ -137,6 +138,9 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         dqn(targs, total_loss)  # DQN 学习（核心算法，从【经验回放存储】中收集经验）
     # while end
 
+    # 保存智能体这个回合渲染的动作 UI
+    targs.save_render_ui(epoch)
+
     finish_time = current_seconds() - bgn_time
     log.info(f"第 {epoch}/{targs.epoches} 回合 完成，累计步数={step_counter} 步, 耗时={finish_time}s, 奖励={total_reward}, 探索率={targs.cur_epsilon}")
 
@@ -150,7 +154,6 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     writer.add_scalar('特殊/每回合学习率', targs.optimizer.param_groups[0]['lr'], epoch)
     writer.add_histogram('特殊/每回合 Q 值分布', targs.model(obs), epoch)     # 用于了解模型对每个状态-动作对的估计
     return
-
 
 
 def select_next_action(targs: TrainArgs, obs) :
