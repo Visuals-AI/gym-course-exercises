@@ -69,6 +69,7 @@ def main(args) :
     #   在 DQN 中，传统 Q-learning 中的 Q 表（一个用于存储所有状态-动作对应价值的巨大表格）被一个深度神经网络所替代。
     #   这个神经网络被训练来预测给定状态和动作下的 Q 值
     train_dqn(targs)
+    targs.close_env()
 
 
 def train_dqn(targs: TrainArgs) :
@@ -92,7 +93,6 @@ def train_dqn(targs: TrainArgs) :
         time.sleep(0.01)
 
     writer.close()
-    targs.close_env()
     log.warn("已完成全部训练")
 
     targs.save_checkpoint(targs.epoches, -1, True)

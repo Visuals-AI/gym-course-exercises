@@ -91,7 +91,7 @@ class TrainArgs :
         重置预设环境
         :return: None
         '''
-        self.env.reset()
+        return self.env.reset()
 
 
     def close_env(self) :
