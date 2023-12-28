@@ -147,6 +147,7 @@ def test(targs : TrainArgs, epoch) :
         labels = [
             f"epoch: {epoch}", 
             f"step: {cnt_step}", 
+            f"action: {action}", 
         ]
         targs.render(labels)
 
