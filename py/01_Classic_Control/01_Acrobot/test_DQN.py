@@ -128,6 +128,7 @@ def test(targs : TrainArgs, epoch) :
     :params: epoch 正在验证的回合数
     :return: 是否完成挑战
     '''
+    targs.reset_render_cache()
     raw_obs = targs.reset_env()
     obs = to_tensor(raw_obs[0], targs)  # 把观测空间的初始状态转换为 PyTorch 张量，并送入神经网络所在的设备
 
