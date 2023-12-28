@@ -86,6 +86,14 @@ class TrainArgs :
         return env
 
 
+    def reset_env(self) :
+        '''
+        重置预设环境
+        :return: None
+        '''
+        self.env.reset()
+
+
     def close_env(self) :
         '''
         关闭预设环境
@@ -109,6 +117,15 @@ class TrainArgs :
             if self.tagger.show(frame, labels) :
                 os._exit(0)
         return frame
+    
+
+    def reset_render_cache(self) :
+        '''
+        重置渲染画面的内存
+        :return: None
+        '''
+        if self.args.save_gif :
+            self.tagger.reset()
     
 
     def save_render_ui(self, epoch) :
