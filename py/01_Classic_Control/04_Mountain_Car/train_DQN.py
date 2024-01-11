@@ -215,24 +215,12 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
     next_obs = to_tensor(next_raw_obs, targs)      # 把观测空间状态数组送入神经网络所在的设备
     done = terminated or truncated
 
-    # 在 CartPole 问题中，目标是让智能体坚持更长的步数
-    # 而 DQN 贪婪策略是尽早完成挑战，在CartPole 问题中每一步默认的固定奖励是 +1，实际训练下来这种奖励策略并不足以引导智能体坚持更长的步数，它依然倾向更早地结束挑战
-    # 因此这里做一个 reward shaping（奖励整形），把线性奖励调整为非线性，引导智能体坚持到更长的回合数
-
-    # 1. 智能体每一步得到的奖励逐步递减，目的是使得智能体不要专注短期收益
-    increment_factor = 1 - step_counter / MAX_STEP     # 递减因子 = 1 - 当前步数 / 步数上限
-    reward = reward * increment_factor
-    
-    # 阶梯式激励
-    if step_counter > 0 :
-
-        # 2. 每坚持 10 步，可以在原奖励基础上得到额外的 +10 奖励（额外小糖果，持续激励）
-        if step_counter % 10 == 0 :
-            reward += 10
-
-        # 3. 每坚持 100 步，可以在原奖励基础上得到额外的 +100 奖励（额外大糖果，持续激励）
-        if step_counter % 100 == 0 :
-            reward += 100
+    # FIXME 
+    print(next_obs)
+    # x = next_obs[0]
+    # speed = next_obs[1]
+    # 起始位置在 -0.4 ~ -0.6， 速度为 0， 最大为 +-0.07
+    # 可以给予阶梯式奖励
     return (next_obs, reward, done)
 
 
