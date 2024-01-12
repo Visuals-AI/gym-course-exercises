@@ -29,6 +29,7 @@ class Tagger :
         self.eval = eval
         self.exit_button = ord('q')
         self.pause_button = ord('p')
+        self.pause_second = 5
         self.fps = 60
         self.frames = []
 
@@ -54,10 +55,10 @@ class Tagger :
         self.frames.append(pil_img)
         is_exit = False
         cv2.imshow(self.win_title, cv2_img)
-        
+
         press_btn = cv2.waitKey(1) & 0xFF
         if press_btn == self.pause_button :
-            time.sleep(10)
+            time.sleep(self.pause_second)
         if press_btn == self.exit_button :
             is_exit = True
         return is_exit

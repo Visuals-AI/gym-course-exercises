@@ -35,7 +35,7 @@ def arguments() :
         description='在默认环境下、使用深度 Q 网络（DQN）验证智能体操作 CartPole', 
         epilog='\r\n'.join([
             '运行环境: python3', 
-            '运行示例: python py/01_Classic_Control/02_Cart_Pole/test_DQN.py'
+            '运行示例: python py/01_Classic_Control/04_Mountain_Car/test_DQN.py'
         ])
     )
     parser.add_argument('-u', '--human', dest='human', action='store_true', default=False, help='渲染模式: 人类模式，帧率较低且无法更改窗体显示内容')
