@@ -7,6 +7,7 @@
 
 import cv2
 import os
+import time
 import imageio
 import numpy as np
 from PIL import Image
@@ -24,9 +25,10 @@ class Tagger :
         :params: eval true: 评估模式； False: 训练模式
         :return: Tagger
         '''
-        self.win_title = f"{env_name} ['Q' for exit]"
+        self.win_title = f"{env_name} ['p' for pause 10s] ['q' for exit]"
         self.eval = eval
-        self.exit_button = ord('Q')
+        self.exit_button = ord('q')
+        self.pause_button = ord('p')
         self.fps = 60
         self.frames = []
 
@@ -52,7 +54,11 @@ class Tagger :
         self.frames.append(pil_img)
         is_exit = False
         cv2.imshow(self.win_title, cv2_img)
-        if cv2.waitKey(1) & 0xFF == self.exit_button:
+        
+        press_btn = cv2.waitKey(1) & 0xFF
+        if press_btn == self.pause_button :
+            time.sleep(10)
+        if press_btn == self.exit_button :
             is_exit = True
         return is_exit
 
