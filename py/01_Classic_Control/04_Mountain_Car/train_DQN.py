@@ -219,6 +219,7 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
     print(next_obs)
     # x = next_obs[0]
     # speed = next_obs[1]
+    #  speed 向前为正，向后为负，大部分时间都小于 0.01
     # 起始位置在 -0.4 ~ -0.6， 速度为 0， 最大为 +-0.07
     # 可以给予阶梯式奖励
     return (next_obs, reward, done)
