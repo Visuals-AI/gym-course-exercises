@@ -25,13 +25,13 @@ class Tagger :
         :params: eval true: 评估模式； False: 训练模式
         :return: Tagger
         '''
-        self.win_title = f"{env_name} ['p' for pause 10s] ['q' for exit]"
         self.eval = eval
+        self.fps = 60
+        self.frames = []
         self.exit_button = ord('q')
         self.pause_button = ord('p')
         self.pause_second = 5
-        self.fps = 60
-        self.frames = []
+        self.win_title = f"{env_name} ['p' for pause {self.pause_second}s] ['q' for exit]"
 
 
     def reset(self) :
