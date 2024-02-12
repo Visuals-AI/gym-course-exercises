@@ -118,8 +118,8 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     total_loss = 0                  # 累计损失率。反映了预测 Q 值和目标 Q 值之间的差异
     step_counter = 0                # 训练步数计数器
     bgn_time = current_seconds()    # 训练时长计数器
-    optimal_x = -1                  # 初始化当前回合的最优距离
-    optimal_speed = -1              # 初始化当前回合的最优速度
+    min_x = 99                      # 初始化当前回合的最优距离
+    max_x = -99                     # 初始化当前回合的最优速度
 
     # 开始训练智能体
     while True:
@@ -130,7 +130,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         next_obs, reward, done = exec_next_action(targs, action, epoch, step_counter)
 
         # 调整奖励
-        # reward, optimal_x, optimal_speed = adjust(next_obs, reward, optimal_x, optimal_speed)
+        reward, min_x, max_x = adjust(next_obs, reward, min_x, max_x)
         
         # 向【经验回放存储】添加当前 step 执行前后状态、奖励情况等
         targs.memory.append((obs, action, reward, next_obs, done))
@@ -222,7 +222,7 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
     return (next_obs, reward, done)
 
 
-def adjust(next_obs, reward, optimal_x, optimal_speed) :
+def adjust(next_obs, reward, min_x, max_x) :
     '''
     奖励重塑
     :params: next_obs 执行当前 action 后、小车处于的状态
@@ -234,15 +234,19 @@ def adjust(next_obs, reward, optimal_x, optimal_speed) :
     x = next_obs[0][0]     # 起始位置在 -0.4 ~ -0.6
     speed = next_obs[0][1] # 起始速度 speed = 0，向前为正、向后为负，最大为 +-0.07
 
-    if x > optimal_x :
-        reward += 10
-        optimal_x = x
+    if x > max_x :
+        reward += 20
+        max_x = x
 
-    if speed > optimal_speed :
+    elif x < min_x :
         reward += 10
-        optimal_speed = speed
+        min_x = x
 
-    return (reward, optimal_x, optimal_speed)
+    # if speed > optimal_speed :
+    #     reward += 10
+    #     optimal_speed = speed
+
+    return (reward, min_x, max_x)
 
 
 
