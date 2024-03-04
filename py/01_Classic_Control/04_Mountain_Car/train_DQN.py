@@ -118,8 +118,8 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     total_loss = 0                  # 累计损失率。反映了预测 Q 值和目标 Q 值之间的差异
     step_counter = 0                # 训练步数计数器
     bgn_time = current_seconds()    # 训练时长计数器
-    min_x = 99                      # 初始化当前回合的最优距离
-    max_x = -99                     # 初始化当前回合的最优速度
+    min_x = 99                      # 本回合训练中、小车走得离目标地点最近的距离
+    max_x = -99                     # 本回合训练中、小车走得离目标地点最远的距离
 
     # 开始训练智能体
     while True:
