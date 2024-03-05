@@ -142,6 +142,12 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
             f"epsilon: {targs.cur_epsilon}", 
             f"epsilon_decay: {targs.epsilon_decay}",
             f"gamma: {targs.gamma}",
+            f"cosθ1: {obs[0][0]}",              # 第一个关节角度的余弦值（这个角度是指第一个关节与垂直向下位置的夹角）
+            f"sinθ1: {obs[0][1]}",              # 第一个关节角度的正弦值
+            f"cosθ2: {obs[0][2]}",              # 第二个关节角度的余弦值（这个角度是相对于第一个关节的）
+            f"sinθ2: {obs[0][3]}",              # 第二个关节角度的正弦值
+            f"angular_velocity1: {obs[0][4]}",  # 第一个关节的角速度
+            f"angular_velocity2: {obs[0][5]}",  # 第二个关节的角速度
         ]
         targs.render(labels)
         if done:

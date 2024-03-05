@@ -148,7 +148,11 @@ def test(targs : TrainArgs, epoch) :
         labels = [
             f"epoch: {epoch}", 
             f"step: {cnt_step}", 
-            f"action: {action}", 
+            f"action: {action}",
+            f"position: {obs[0][0]}",         # 小车位置
+            f"velocity: {obs[0][1]}",         # 小车速度
+            f"angle: {obs[0][2]}",            # 极角，即杆子和垂直线之间的夹角
+            f"angular_velocity: {obs[0][3]}",   # 杆子绕其轴的角速度，即其倾斜速率的快慢, 
         ]
         targs.render(labels)
 

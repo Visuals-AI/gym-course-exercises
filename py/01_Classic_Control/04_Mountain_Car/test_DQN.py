@@ -150,6 +150,8 @@ def test(targs : TrainArgs, epoch) :
             f"epoch: {epoch}", 
             f"step: {cnt_step}", 
             f"action: {action}", 
+            f"position: {obs[0][0]}",         # 小车位置
+            f"velocity: {obs[0][1]}",         # 小车速度
         ]
         targs.render(labels)
 

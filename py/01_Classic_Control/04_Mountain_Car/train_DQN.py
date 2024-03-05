@@ -148,6 +148,8 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
             f"epsilon: {targs.cur_epsilon}", 
             f"epsilon_decay: {targs.epsilon_decay}",
             f"gamma: {targs.gamma}",
+            f"position: {obs[0][0]}",         # 小车位置
+            f"velocity: {obs[0][1]}",         # 小车速度
         ]
         targs.render(labels)
         if done:
