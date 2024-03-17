@@ -3,13 +3,13 @@
 # @Author : EXP
 # @Time   : 2024/01/11 13:01
 # -----------------------------------------------
-# 经典控制： Mountain Car （山地车-离散动作）
+# 经典控制： Mountain Car （山地车-连续动作）
 #   Mountain Car 是一种确定性 MDP（马尔可夫决策过程）问题。
 #   目标是控制一个无法直接攀登陡峭山坡的小车，使其到达山顶。
 #   小车的动力不足以直接爬上山坡，所以必须利用山坡的反向坡度来获得足够的动量。
 # 
 # 相关文档：
-#   https://gymnasium.farama.org/environments/classic_control/mountain_car/
+#   https://gymnasium.farama.org/environments/classic_control/mountain_car_continuous/
 # -----------------------------------------------
 
 # 添加公共库文件的相对位置
@@ -35,7 +35,7 @@ def arguments() :
         description='在默认环境下、使用深度 Q 网络（DQN）验证智能体操作 Acrobot', 
         epilog='\r\n'.join([
             '运行环境: python3', 
-            '运行示例: python py/01_Classic_Control/04_Mountain_Car/test_DQN.py'
+            '运行示例: python py/01_Classic_Control/03_Mountain_Car/test_DQN.py'
         ])
     )
     parser.add_argument('-u', '--human', dest='human', action='store_true', default=False, help='渲染模式: 人类模式，帧率较低且无法更改窗体显示内容')
