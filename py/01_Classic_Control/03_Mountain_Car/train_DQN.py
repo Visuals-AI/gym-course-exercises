@@ -40,7 +40,7 @@ def arguments() :
         description='在默认环境下、使用深度 Q 网络（DQN）训练智能体操作 MountainCarContinuous', 
         epilog='\r\n'.join([
             '运行环境: python3', 
-            '运行示例: python py/01_Classic_Control/03_Mountain_Car/train_DQN.py'
+            '运行示例: python py/01_Classic_Control/03_Mountain_Car/train_td3.py'
         ])
     )
     parser.add_argument('-u', '--human', dest='human', action='store_true', default=False, help='渲染模式: 人类模式，帧率较低且无法更改窗体显示内容')
@@ -64,18 +64,16 @@ def main(args) :
     targs = TrainArgs(args)
 
     # 实现 “训练算法” 以进行训练
-    # 针对 MountainCarContinuous 问题， DQN 算法会更适合：
-    #   DQN（Deep Q-Network）是一种将深度学习与强化学习相结合的算法
-    #   它主要用于解决具有连续、高维状态空间的问题，特别是那些传统的 Q-learning 算法难以处理的问题。
-    #   在 DQN 中，传统 Q-learning 中的 Q 表（一个用于存储所有状态-动作对应价值的巨大表格）被一个深度神经网络所替代。
-    #   这个神经网络被训练来预测给定状态和动作下的 Q 值
-    train_dqn(targs)
+    # 针对 MountainCar 问题， TD3 算法会更适合：
+    #   DDPG（Deep Deterministic Policy Gradient）：结合了策略梯度和 Q 学习的算法，特别适用于连续动作空间。
+    #   TD3（Twin Delayed DDPG）：是 DDPG 的改进版本，通过使用两个 Q 网络和延迟策略更新来减少过高估计和提高稳定性。
+    train_td3(targs)
     targs.close_env()
 
 
-def train_dqn(targs: TrainArgs) :
+def train_td3(targs: TrainArgs) :
     '''
-    使用深度 Q 网络（DQN）算法进行训练。
+    使用 TD3 算法进行训练。
     :params: targs 用于训练的环境和模型关键参数
     :return: None
     '''

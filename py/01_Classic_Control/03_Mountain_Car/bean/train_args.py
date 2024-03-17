@@ -8,7 +8,8 @@ import os
 import gymnasium as gym
 import torch.nn as nn
 import torch.optim as optim
-from bean.dqn import DQN
+from bean.actor import Actor
+from bean.critic import Critic
 from collections import deque
 from tools.utils import scan_device
 from bean.tagger import Tagger
@@ -29,12 +30,17 @@ class TrainArgs :
         self.args = args
         self.env = self.create_env(ENV_NAME)
         
-        self.obs_size = self.env.observation_space.shape[0] # 状态空间维度
-        self.action_size = self.env.action_space.n          # 动作空间数量
+        self.obs_size = self.env.observation_space.shape[0]     # 状态空间维度
+        self.act_size = self.env.action_space.shape[0]          # 动作空间维度
+        self.max_action = float(self.env.action_space.high[0])
 
-        self.model = DQN(self.obs_size, self.action_size)   # DQN 简单的三层网络模型（主模型）
+        # TD3 的网络模型
+        self.actor_model = Actor(self.obs_size, self.act_size, self.max_action) # 策略模型
+        self.critic_model = Critic(self.obs_size, self.act_size)                # 值模型
+
         self.device = scan_device(args.cpu)                 # 检查 GPU 是否可用
-        self.model.to(self.device)                          # 将模型和优化器移动到 GPU （或 CPU）
+        self.actor_model.to(self.device)                    # 将模型和优化器移动到 GPU （或 CPU）
+        self.critic_model.to(self.device) 
 
         if eval :
             self.tagger = Tagger(ENV_NAME, True)
