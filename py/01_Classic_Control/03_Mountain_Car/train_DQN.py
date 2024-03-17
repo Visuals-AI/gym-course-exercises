@@ -36,8 +36,8 @@ from color_log.clog import log
 def arguments() :
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        prog='Gym - CartPole 训练脚本',
-        description='在默认环境下、使用深度 Q 网络（DQN）训练智能体操作 CartPole', 
+        prog='Gym - MountainCarContinuous 训练脚本',
+        description='在默认环境下、使用深度 Q 网络（DQN）训练智能体操作 MountainCarContinuous', 
         epilog='\r\n'.join([
             '运行环境: python3', 
             '运行示例: python py/01_Classic_Control/03_Mountain_Car/train_DQN.py'
@@ -64,7 +64,7 @@ def main(args) :
     targs = TrainArgs(args)
 
     # 实现 “训练算法” 以进行训练
-    # 针对 CartPole 问题， DQN 算法会更适合：
+    # 针对 MountainCarContinuous 问题， DQN 算法会更适合：
     #   DQN（Deep Q-Network）是一种将深度学习与强化学习相结合的算法
     #   它主要用于解决具有连续、高维状态空间的问题，特别是那些传统的 Q-learning 算法难以处理的问题。
     #   在 DQN 中，传统 Q-learning 中的 Q 表（一个用于存储所有状态-动作对应价值的巨大表格）被一个深度神经网络所替代。
@@ -110,8 +110,8 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     :return: None
     '''
     targs.reset_render_cache()
-    raw_obs = targs.reset_env()         # 重置环境（在 CartPole 环境中，这个初始状态就是观测空间，它包含了关于 CartPole 状态的数组）
-                                        # raw_obs 的第 0 个元素才是状态数组 (array([ 0.9996459 ,  0.02661069,  0.9958208 ,  0.09132832, -0.04581745, -0.06583451], dtype=float32), {})
+    raw_obs = targs.reset_env()         # 重置环境（在 MountainCarContinuous 环境中，这个初始状态就是观测空间，它包含了关于 MountainCarContinuous 状态的数组）
+                                        # raw_obs 的第 0 个元素才是状态数组 (array([ ... ], dtype=float32), {})
     obs = to_tensor(raw_obs[0], targs)  # 把观测空间状态数组送入神经网络所在的设备
     
     total_reward = 0                # 累计智能体从环境中获得的总奖励。在每个训练回合结束时，total_reward 将反映智能体在该回合中的总体表现。奖励越高，意味着智能体的性能越好。

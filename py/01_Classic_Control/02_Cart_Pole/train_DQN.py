@@ -110,7 +110,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     '''
     targs.reset_render_cache()
     raw_obs = targs.reset_env()         # 重置环境（在 CartPole 环境中，这个初始状态就是观测空间，它包含了关于 CartPole 状态的数组）
-                                        # raw_obs 的第 0 个元素才是状态数组 (array([ 0.9996459 ,  0.02661069,  0.9958208 ,  0.09132832, -0.04581745, -0.06583451], dtype=float32), {})
+                                        # raw_obs 的第 0 个元素才是状态数组 (array([ ... ], dtype=float32), {})
     obs = to_tensor(raw_obs[0], targs)  # 把观测空间状态数组送入神经网络所在的设备
     
     total_reward = 0                # 累计智能体从环境中获得的总奖励。在每个训练回合结束时，total_reward 将反映智能体在该回合中的总体表现。奖励越高，意味着智能体的性能越好。
