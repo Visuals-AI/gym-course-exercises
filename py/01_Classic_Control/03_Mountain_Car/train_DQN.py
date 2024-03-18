@@ -151,7 +151,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         if done:
             break
 
-        # td3(targs, total_loss)  # DQN 学习（核心算法，从【经验回放存储】中收集经验）
+        td3(targs, total_loss)  # DQN 学习（核心算法，从【经验回放存储】中收集经验）
     # while end
 
     # 保存智能体这个回合渲染的动作 UI
@@ -188,7 +188,7 @@ def select_next_action(targs: TrainArgs, obs) :
         with torch.no_grad() :  # 暂时禁用梯度计算
             # actor_model(obs) == actor_model.forward(obs) ， 这是 PyTorch 的语法糖
             # .cpu().data.numpy()， 把张量移动到 CPU 上作为动作输出，确保兼容性。 如果一直都在一个设备，可替换为 .detach()
-            action = targs.actor_model(obs).cpu().data.numpy()
+            action = targs.actor_model(obs).detach()
     else:
         action = targs.env.action_space.sample()
 
@@ -225,7 +225,7 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
 
 
 
-def dqn(targs: TrainArgs, total_loss) :
+def td3(targs: TrainArgs, total_loss) :
     '''
     进行 DQN 学习（基于 Q 值的强化学习方法）：
         这个过程是 DQN 学习算法的核心，它利用从环境中收集的经验来不断调整和优化网络，使得预测的 Q 值尽可能接近实际的 Q 值。
@@ -240,6 +240,9 @@ def dqn(targs: TrainArgs, total_loss) :
     if len(targs.memory) <= targs.batch_size :
         return
     
+    # ===============================
+    # 准备批量数据
+    # ===============================
     # 从【经验回放存储】中随机抽取 batch_size 个样本数
     # 这种随机抽样是为了减少样本间的相关性，增强学习的稳定性和效率
     transitions = random.sample(targs.memory, targs.batch_size)
@@ -248,34 +251,85 @@ def dqn(targs: TrainArgs, total_loss) :
     batch = Transition(*zip(*transitions))
 
     # 将每个样本的组成部分 (obs, action, reward, next_obs, done) ，拆分转换为独立的批次
-    # 目的是后续计算时可以批量进行、加速运算 （单个计算也可以，但是太慢了）
-    obs_batch = cat_batch_tensor(batch.obs, torch.float32)
-    action_batch = cat_batch_tensor(batch.action, torch.long, up_dim=True)
-    reward_batch = cat_batch_tensor(batch.reward, torch.float32, up_dim=True)
-    next_obs_batch = cat_batch_tensor(batch.next_obs, torch.float32)
-    done_batch = cat_batch_tensor(batch.done, torch.float32, up_dim=True)
+    obs_batch = torch.tensor(batch.obs, dtype=torch.float, device=targs.device)
+    action_batch = torch.tensor(batch.action, dtype=torch.float, device=targs.device).unsqueeze(-1)
+    reward_batch = torch.tensor(batch.reward, dtype=torch.float, device=targs.device).unsqueeze(-1)
+    next_obs_batch = torch.tensor(batch.next_obs, dtype=torch.float, device=targs.device)
+    done_batch = torch.tensor(batch.done, dtype=torch.float, device=targs.device).unsqueeze(-1)
+
+
+    # ===============================
+    # 更新 Critic 网络
+    # ===============================
+    with torch.no_grad():
+        policy_noise = 0.2
+        noise_clip = 0.4
+        # TD3通过在选取的动作上添加噪声来平滑目标策略
+        noise = (torch.randn_like(action_batch) * policy_noise).clamp(-noise_clip, noise_clip)
+        next_actions = (targs.target_actor_model(next_obs_batch) + noise).clamp(targs.env.action_space.low, targs.env.action_space.high)
+
+        target_Q1, target_Q2 = targs.target_critic_model(next_obs_batch, next_actions)
+        target_Q = torch.min(target_Q1, target_Q2)
+        target_Q_values = reward_batch + (1 - done_batch) * targs.gamma * target_Q
+
+    # 计算当前Critic网络的Q值
+    current_Q1, current_Q2 = targs.critic_model(obs_batch, action_batch)
+    critic_loss = F.mse_loss(current_Q1, target_Q_values) + F.mse_loss(current_Q2, target_Q_values)
+
+    targs.critic_optimizer.zero_grad()
+    critic_loss.backward()
+    targs.critic_optimizer.step()
+
+
+    # ===============================
+    # 延迟更新Actor网络
+    # ===============================
+    # 在TD3中，Actor网络的更新频率较低（例如，每2次Critic更新后更新一次Actor），以减少策略的方差。
+    policy_update_interval = 2
+    if total_loss % policy_update_interval == 0:
+        actor_loss = -targs.critic_model.Q1(obs_batch, targs.actor_model(obs_batch)).mean()
+
+        targs.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        targs.actor_optimizer.step()
+
+
+    # ===============================
+    # 软更新目标网络
+    # ===============================
+    if total_loss % targs.update_target_every == 0:
+        soft_update(targs.target_critic_model, targs.critic_model, targs.tau)
+        soft_update(targs.target_actor_model, targs.actor_model, targs.tau)
+
+
+
+def soft_update(target, source, tau):
+    for target_param, param in zip(target.parameters(), source.parameters()):
+        target_param.data.copy_(tau*param.data + (1-tau)*target_param.data)
+
+
 
     # 获得当前状态下的 Q 值（对当前状态的观测进行前向传播的结果，用于后续计算损失）
-    current_Q_values = get_current_Q_values(targs.model, obs_batch, action_batch)
+    # current_Q_values = get_current_Q_values(targs.model, obs_batch, action_batch)
 
-    # 计算下一个状态的最大预测 Q 值
-    expected_q_values = calculate_expected_Q_values(
-        targs.target_model, targs.gamma, 
-        next_obs_batch, reward_batch, done_batch
-    )
+    # # 计算下一个状态的最大预测 Q 值
+    # expected_q_values = calculate_expected_Q_values(
+    #     targs.target_model, targs.gamma, 
+    #     next_obs_batch, reward_batch, done_batch
+    # )
 
-    # 计算 Huber 损失（亦称平滑 L1 损失，用于表示当前 Q 值和预期 Q 值之间的差异）
-    # Huber 损失是均方误差和绝对误差的结合，对异常值不那么敏感
-    loss = F.smooth_l1_loss(
-        current_Q_values,               # 是一个二维张量，其形状是 [batch_size, 1]，因为它是通过 gather 操作从网络输出中选取的特定动作的 Q 值
-        expected_q_values.unsqueeze(1)  # 在张量中增加一个维度，其中第二个维度（列）的大小为 1，即使其形状从 [batch_size] 转换成 [batch_size, 1]
-    )
+    # # 计算 Huber 损失（亦称平滑 L1 损失，用于表示当前 Q 值和预期 Q 值之间的差异）
+    # # Huber 损失是均方误差和绝对误差的结合，对异常值不那么敏感
+    # loss = F.smooth_l1_loss(
+    #     current_Q_values,               # 是一个二维张量，其形状是 [batch_size, 1]，因为它是通过 gather 操作从网络输出中选取的特定动作的 Q 值
+    #     expected_q_values.unsqueeze(1)  # 在张量中增加一个维度，其中第二个维度（列）的大小为 1，即使其形状从 [batch_size] 转换成 [batch_size, 1]
+    # )
 
-    # 优化模型
-    optimize_params(targs.model, targs.optimizer, loss)
+    # # 优化模型
+    # optimize_params(targs.model, targs.optimizer, loss)
 
-    # 累积损失更新
-    total_loss += loss.item()
+    # # 累积损失更新
+    # total_loss += loss.item()
 
 
 def cat_batch_tensor(batch_data, data_type, up_dim=False) :
