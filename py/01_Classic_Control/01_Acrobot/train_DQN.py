@@ -185,7 +185,7 @@ def select_next_action(targs: TrainArgs, obs) :
     :return: 下一步要执行的动作
     '''
 
-    # 在观测空间随机选择一个动作（受当前探索率影响）
+    # 在动作空间随机选择一个动作（受当前探索率影响）
     if np.random.rand() <= targs.cur_epsilon :
         action = targs.env.action_space.sample()  
 

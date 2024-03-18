@@ -36,7 +36,7 @@ class TrainArgs :
         self.device = scan_device(args.cpu)                     # 检查使用 GPU 还是 CPU
 
         # TD3 的 Actor-Critic 网络模型
-        self.actor_model, self.critic_model = self._create_model(
+        self.actor_model, self.critic_model = self.create_model(
             self.obs_size, self.act_size, self.max_action, self.device
         )
 
@@ -61,6 +61,8 @@ class TrainArgs :
             self.cur_epsilon = args.epsilon             # 当前探索率
             self.epsilon_decay = args.epsilon_decay     # 探索率的衰减率
             self.min_epsilon = args.min_epsilon         # 最小探索率
+            self.noise = args.noise                     # 噪声强度
+            self.tau = args.tau                         # 目标网络的更新率
             self.gamma = args.gamma                     # 折扣因子
             self.info = {}                              # 其他额外参数
             self.tensor_logs = args.tensor_logs         # TensorBoard 日志目录
@@ -69,7 +71,7 @@ class TrainArgs :
             #   一个是用于进行实际决策的主模型（self.model）： 用于生成当前的 Q 值
             #   另一个是目标模型（target_model）：用于计算期望的 Q 值，以提供更稳定的学习目标
             # 故 TD3 也类似
-            self.target_actor_model, self.target_critic_model = self._create_model(
+            self.target_actor_model, self.target_critic_model = self.create_model(
                 self.obs_size, self.act_size, self.max_action, self.device
             )
             self.update_target_every = 5                                # 定义更新目标模型的频率
@@ -169,12 +171,20 @@ class TrainArgs :
         使用 主模型 更新 目标模型 网络的参数。
             在训练循环中，需要定期更新目标模型的参数，这通常在固定的回合数之后发生。
             而且两个模型的参数不会同时更新，学习过程会更加稳定。
+
+        在 TD3 中，目标网络的更新使用了软更新策略，即目标网络的参数是主网络参数和旧目标网络参数的加权平均。
+        软更新策略提供了一种渐进式的更新方式，它可以减少目标网络参数在更新时的突变，从而增强整个学习过程的稳定性。
+        
         :params: epoch 已训练回合数
         :return: None
         '''
         if epoch % self.update_target_every == 0:
-            self.target_actor_model.load_state_dict(self.actor_model.state_dict())
-            self.target_critic_model.load_state_dict(self.critic_model.state_dict())
+            for target_param, param in zip(self.target_actor_model.parameters(), self.actor_model.parameters()):
+                target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+            
+            for target_param, param in zip(self.target_critic_model.parameters(), self.critic_model.parameters()):
+                target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+
 
         
     def load_last_checkpoint(self) :

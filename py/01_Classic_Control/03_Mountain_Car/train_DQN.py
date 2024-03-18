@@ -54,6 +54,8 @@ def arguments() :
     parser.add_argument('-p', '--epsilon', dest='epsilon', type=float, default=1.0, help='探索率: 用于 epsilon-greedy 策略，它决定了智能体探索新动作的频率。值越高，智能体越倾向于尝试新的、不确定的动作而不是已知的最佳动作。这个值通常在训练初期较高，随着学习的进行逐渐降低')
     parser.add_argument('-d', '--epsilon_decay', dest='epsilon_decay', type=float, default=0.995, help='衰减率: 探索率随时间逐渐减小的速率。每经过一个回合，epsilon 将乘以这个衰减率，从而随着时间的推移减少随机探索的频率')
     parser.add_argument('-m', '--min_epsilon', dest='min_epsilon', type=float, default=0.1, help='最小探索率: 即使经过多次衰减，探索率也不会低于这个值，确保了即使在后期也有一定程度的探索')
+    parser.add_argument('-n', '--noise', dest='noise', type=float, default=0.1, help='TD3 算法的噪声强度，经验值。例如若动作空间的范围是 [-1, 1]，则噪声为 0.1 意味着在动作值的 10% 范围内波动')
+    parser.add_argument('-w', '--tau', dest='tau', type=float, default=0.005, help='目标网络的更新率，决定了主网络对目标网络的影响程度，通常设置为一个很小的值')
     parser.add_argument('-b', '--batch_size', dest='batch_size', type=int, default=32, help='从经验回放存储中一次抽取并用于训练网络的经验的样本数。默认值为 32，即每次训练时会使用 32 个经验样本')
     parser.add_argument('-t', '--tensor_logs', dest='tensor_logs', type=str, default=get_tensor_path(MODEL_NAME), help='TensorBoardX 日志目录')
     return parser.parse_args()
@@ -78,7 +80,7 @@ def train_td3(targs: TrainArgs) :
     :return: None
     '''
     writer = SummaryWriter(logdir=targs.tensor_logs) # 训练过程记录器，可用 TensorBoard 查看
-    targs.load_last_checkpoint()                    # 加载最后一次训练的状态和参数
+    # targs.load_last_checkpoint()                    # 加载最后一次训练的状态和参数
 
     log.info("++++++++++++++++++++++++++++++++++++++++")
     log.info("开始训练 ...")
@@ -88,7 +90,7 @@ def train_td3(targs: TrainArgs) :
 
         targs.update_target_model(epoch)        # 更新目标模型
         epsilon = targs.update_epsilon()        # 衰减探索率
-        targs.save_checkpoint(epoch, epsilon)   # 保存当次训练的状态和参数（用于断点训练）
+        # targs.save_checkpoint(epoch, epsilon)   # 保存当次训练的状态和参数（用于断点训练）
         time.sleep(0.01)
 
     writer.close()
@@ -116,8 +118,6 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     total_loss = 0                  # 累计损失率。反映了预测 Q 值和目标 Q 值之间的差异
     step_counter = 0                # 训练步数计数器
     bgn_time = current_seconds()    # 训练时长计数器
-    min_x = 99                      # 本回合训练中、小车走得离目标地点最近的距离
-    max_x = -99                     # 本回合训练中、小车走得离目标地点最远的距离
 
     # 开始训练智能体
     while True:
@@ -127,9 +127,6 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         # 执行下一步动作
         next_obs, reward, done = exec_next_action(targs, action, epoch, step_counter)
 
-        # 调整奖励
-        reward, min_x, max_x = adjust(next_obs, reward, min_x, max_x)
-        
         # 向【经验回放存储】添加当前 step 执行前后状态、奖励情况等
         targs.memory.append((obs, action, reward, next_obs, done))
 
@@ -145,6 +142,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
             f"total_reward: {total_reward}", 
             f"epsilon: {targs.cur_epsilon}", 
             f"epsilon_decay: {targs.epsilon_decay}",
+            f"noise: {targs.noise}",
             f"gamma: {targs.gamma}",
             f"position: {obs[0][0]}",         # 小车位置
             f"velocity: {obs[0][1]}",         # 小车速度
@@ -153,7 +151,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         if done:
             break
 
-        dqn(targs, total_loss)  # DQN 学习（核心算法，从【经验回放存储】中收集经验）
+        # td3(targs, total_loss)  # DQN 学习（核心算法，从【经验回放存储】中收集经验）
     # while end
 
     # 保存智能体这个回合渲染的动作 UI
@@ -169,8 +167,8 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     writer.add_scalar('通常/每回合完成时间', finish_time, epoch)
     writer.add_scalar('通常/每回合总奖励', total_reward, epoch)
     writer.add_scalar('通常/每回合平均损失', total_loss / step_counter, epoch)
-    writer.add_scalar('特殊/每回合学习率', targs.optimizer.param_groups[0]['lr'], epoch)
-    writer.add_histogram('特殊/每回合 Q 值分布', targs.model(obs), epoch)     # 用于了解模型对每个状态-动作对的估计
+    # writer.add_scalar('特殊/每回合学习率', targs.optimizer.param_groups[0]['lr'], epoch)
+    # writer.add_histogram('特殊/每回合 Q 值分布', targs.model(obs), epoch)     # 用于了解模型对每个状态-动作对的估计
     return
 
 
@@ -184,11 +182,10 @@ def select_next_action(targs: TrainArgs, obs) :
     :params: obs 当前观测空间的状态
     :return: 下一步要执行的动作
     '''
-    if not np.random.rand() <= targs.cur_epsilon:
-        with torch.no_grad():
-            # state = torch.FloatTensor(obs).to(targs.device)
-            # action = targs.actor(state).cpu().data.numpy()
 
+    # 在动作空间随机选择一个动作（受当前探索率影响）
+    if not np.random.rand() <= targs.cur_epsilon:
+        with torch.no_grad() :  # 暂时禁用梯度计算
             # actor_model(obs) == actor_model.forward(obs) ， 这是 PyTorch 的语法糖
             # .cpu().data.numpy()， 把张量移动到 CPU 上作为动作输出，确保兼容性。 如果一直都在一个设备，可替换为 .detach()
             action = targs.actor_model(obs).cpu().data.numpy()
@@ -196,19 +193,8 @@ def select_next_action(targs: TrainArgs, obs) :
         action = targs.env.action_space.sample()
 
     # 在TD3中，为了探索，通常给动作添加一定的噪声
-    noise = np.random.normal(0, targs.expl_noise, size=targs.env.action_space.shape[0])
-    action = (action + noise).clip(targs.env.action_space.low, targs.env.action_space.high)
-
-
-    # 在观测空间随机选择一个动作（受当前探索率影响）
-    if np.random.rand() <= targs.cur_epsilon :
-        action = targs.env.action_space.sample()  
-
-    # 智能体根据当前经验、选择当前估计最优的动作
-    else :
-        action = torch.argmax(      # 2. 使用torch.argmax选择具有最高预期Q值的动作（当前状态下的最佳动作）
-            targs.model(obs)        # 1. 将观测空间当前状态 obs （张量）传递给神经网络模型（model），神经网络模型输出每个可能动作的预期Q值
-        ).item()                    # 3. 从张量中提取动作值
+    noise = np.random.normal(0, targs.noise, size=targs.env.action_space.shape[0])  # 生成噪声向量
+    action = (action + noise).clip(targs.env.action_space.low, targs.env.action_space.high) # 确保 action + noise 依然在动作空间的取值范围内
     return action
 
 
@@ -236,34 +222,6 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
     done = terminated or truncated
     return (next_obs, reward, done)
 
-
-def adjust(next_obs, reward, min_x, max_x):
-    '''
-    奖励重塑，包括对停滞的惩罚
-    :params: next_obs 执行当前 action 后、小车处于的状态
-    :params: reward 执行当前 action 后、小车获得的奖励
-    :params: min_x 本回合训练中、小车走得离目标地点最远的距离（为了借力）
-    :params: max_x 本回合训练中、小车走得离目标地点最近的距离
-    :return: 重塑后的 (reward, min_x, max_x)
-    '''
-    x = next_obs[0][0]     # 小车位置
-    speed = next_obs[0][1] # 小车速度，向前为正、向后为负
-
-    # 鼓励小车向目标移动并更新最远/最近位置
-    if x > max_x:
-        reward += (x - max_x) * 10  # 刷新距离目标最近的距离，给予最大奖励
-        max_x = x
-    elif x < min_x:
-        reward += (min_x - x) * 5  # 刷新距离目标最远的距离，也给予一定的奖励（因为可以借力）
-        min_x = x
-
-    # 根据速度给予奖励或惩罚
-    if abs(speed) > 0.01:  # 如果小车有明显的移动
-        reward += abs(speed) * 5  # 根据速度的绝对值给予奖励
-    else:
-        reward -= 1  # 对于几乎没有移动的情况给予小的惩罚
-
-    return (reward, min_x, max_x)
 
 
 
