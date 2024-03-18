@@ -32,15 +32,13 @@ class TrainArgs :
         
         self.obs_size = self.env.observation_space.shape[0]     # 状态空间维度
         self.act_size = self.env.action_space.shape[0]          # 动作空间维度
-        self.max_action = float(self.env.action_space.high[0])
+        self.max_action = float(self.env.action_space.high[0])  # 最大动作值
+        self.device = scan_device(args.cpu)                     # 检查使用 GPU 还是 CPU
 
-        # TD3 的网络模型
-        self.actor_model = Actor(self.obs_size, self.act_size, self.max_action) # 策略模型
-        self.critic_model = Critic(self.obs_size, self.act_size)                # 值模型
-
-        self.device = scan_device(args.cpu)                 # 检查 GPU 是否可用
-        self.actor_model.to(self.device)                    # 将模型和优化器移动到 GPU （或 CPU）
-        self.critic_model.to(self.device) 
+        # TD3 的 Actor-Critic 网络模型
+        self.actor_model, self.critic_model = self._create_model(
+            self.obs_size, self.act_size, self.max_action, self.device
+        )
 
         if eval :
             self.tagger = Tagger(ENV_NAME, True)
@@ -50,8 +48,9 @@ class TrainArgs :
             self.tagger = Tagger(ENV_NAME, False)
             self.cp_mgr = CheckpointManager(MODEL_NAME) # checkpoint 管理器
 
-            self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr)    # 用于训练神经网络的优化器。这里使用的是 Adam 优化器，一个流行的梯度下降变种，lr=0.001设置了学习率为0.001。
-            self.criterion = nn.MSELoss()                                       # 用于训练过程中的损失函数。这里使用的是均方误差损失（MSE Loss），它是评估神经网络预测值与实际值差异的常用方法。
+            self.actor_optimizer = optim.Adam(self.actor_model.parameters(), lr=args.lr)    # 用于训练神经网络的优化器。这里使用的是 Adam 优化器，一个流行的梯度下降变种，lr=0.001设置了学习率为0.001。
+            self.critic_optimizer = optim.Adam(self.critic_model.parameters(), lr=args.lr)
+            self.criterion = nn.MSELoss()               # 用于训练过程中的损失函数。这里使用的是均方误差损失（MSE Loss），它是评估神经网络预测值与实际值差异的常用方法。
 
             self.memory = deque(maxlen=2000)            # 经验回放存储。本质是一个双端队列（deque），当存储超过2000个元素时，最旧的元素将被移除。经验回放是DQN中的一项关键技术，有助于打破经验间的相关性并提高学习的效率和稳定性。
             self.batch_size = args.batch_size           # 从【经验回放存储】中一次抽取并用于训练网络的【经验样本数】
@@ -69,8 +68,10 @@ class TrainArgs :
             # 在 DQN 中，通常会使用两个模型：
             #   一个是用于进行实际决策的主模型（self.model）： 用于生成当前的 Q 值
             #   另一个是目标模型（target_model）：用于计算期望的 Q 值，以提供更稳定的学习目标
-            self.target_model = DQN(self.obs_size, self.action_size)    # 目标模型
-            self.target_model.to(self.device)                           # 将模型移动到 GPU （或 CPU）
+            # 故 TD3 也类似
+            self.target_actor_model, self.target_critic_model = self._create_model(
+                self.obs_size, self.act_size, self.max_action, self.device
+            )
             self.update_target_every = 5                                # 定义更新目标模型的频率
 
 
@@ -145,6 +146,24 @@ class TrainArgs :
             self.tagger.save_ui(epoch)
     
 
+    def create_model(self, obs_size, act_size, max_action, device) :
+        '''
+        构建 TD3 模型
+        :params: obs_size 状态空间维度
+        :params: act_size 动作空间维度
+        :params: max_action 最大动作值
+        :params: device 设备（GPU/CPU）
+        :return: None
+        '''
+        actor_model = Actor(obs_size, act_size, max_action) # 策略模型
+        critic_model = Critic(obs_size, act_size)           # Q 值模型
+
+        # 将模型和优化器移动到 GPU （或 CPU）
+        actor_model.to(device)               
+        critic_model.to(device) 
+        return (actor_model, critic_model)
+    
+
     def update_target_model(self, epoch):
         '''
         使用 主模型 更新 目标模型 网络的参数。
@@ -154,7 +173,8 @@ class TrainArgs :
         :return: None
         '''
         if epoch % self.update_target_every == 0:
-            self.target_model.load_state_dict(self.model.state_dict())
+            self.target_actor_model.load_state_dict(self.actor_model.state_dict())
+            self.target_critic_model.load_state_dict(self.critic_model.state_dict())
 
         
     def load_last_checkpoint(self) :

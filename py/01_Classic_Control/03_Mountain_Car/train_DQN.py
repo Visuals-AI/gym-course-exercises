@@ -178,12 +178,27 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
 def select_next_action(targs: TrainArgs, obs) :
     '''
     选择下一步要执行的动作。
-        DQN 一般使用 epsilon-greedy 策略：
-        智能体在选择动作时，有一定概率随机探索环境，而其余时间则根据已学习的策略选择最佳动作
+        在 TD3 中，动作的选择是通过 Actor 网络直接进行的，
+        并且为了增加探索性，通常会向选定的动作添加一些噪声。
     :params: targs 用于训练的环境和模型关键参数
     :params: obs 当前观测空间的状态
     :return: 下一步要执行的动作
     '''
+    if not np.random.rand() <= targs.cur_epsilon:
+        with torch.no_grad():
+            # state = torch.FloatTensor(obs).to(targs.device)
+            # action = targs.actor(state).cpu().data.numpy()
+
+            # actor_model(obs) == actor_model.forward(obs) ， 这是 PyTorch 的语法糖
+            # .cpu().data.numpy()， 把张量移动到 CPU 上作为动作输出，确保兼容性。 如果一直都在一个设备，可替换为 .detach()
+            action = targs.actor_model(obs).cpu().data.numpy()
+    else:
+        action = targs.env.action_space.sample()
+
+    # 在TD3中，为了探索，通常给动作添加一定的噪声
+    noise = np.random.normal(0, targs.expl_noise, size=targs.env.action_space.shape[0])
+    action = (action + noise).clip(targs.env.action_space.low, targs.env.action_space.high)
+
 
     # 在观测空间随机选择一个动作（受当前探索率影响）
     if np.random.rand() <= targs.cur_epsilon :

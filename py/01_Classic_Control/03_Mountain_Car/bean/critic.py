@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-# 定义 Critic 网络（Q 网络）
+# 定义 Critic 网络（Q 网络，类比 DQN 中的 Q 值、在连续问题中升维成网络了）
 class Critic(nn.Module):
 
     # 这两个网络结构完全相同，但是它们各自独立地学习和更新，以便为同一状态-动作对提供两个略有不同的价值估计
