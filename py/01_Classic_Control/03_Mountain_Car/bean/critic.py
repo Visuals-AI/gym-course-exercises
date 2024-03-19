@@ -19,6 +19,8 @@ class Critic(nn.Module):
     def __init__(self, state_size, action_size):
         super(Critic, self).__init__()
         # 第一个 Critic 网络
+        print(f"state_size: {state_size}")
+        print(f"action_size: {action_size}")
         self.layer1 = nn.Linear(state_size + action_size, 400)
         self.layer2 = nn.Linear(400, 300)
         self.layer3 = nn.Linear(300, 1)
@@ -27,8 +29,10 @@ class Critic(nn.Module):
         self.layer5 = nn.Linear(400, 300)
         self.layer6 = nn.Linear(300, 1)
 
+    # x: obs_batch  状态张量，形状为 [batch_size, obs_size]
+    # u: act_batch  动作张量，形状为 [batch_size, act_size]
     def forward(self, x, u):
-        xu = torch.cat([x, u], 1)
+        xu = torch.cat([x, u], 1)       # 表示把两个张量的第 1 维拼接在一起形成一个新的张量
         # 第一个 Critic 网络的前向传播
         x1 = F.relu(self.layer1(xu))
         x1 = F.relu(self.layer2(x1))

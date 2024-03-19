@@ -112,7 +112,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     targs.reset_render_cache()
     raw_obs = targs.reset_env()         # 重置环境（在 MountainCarContinuous 环境中，这个初始状态就是观测空间，它包含了关于 MountainCarContinuous 状态的数组）
                                         # raw_obs 的第 0 个元素才是状态数组 (array([ ... ], dtype=float32), {})
-    obs = to_tensor(raw_obs[0], targs)  # 把观测空间状态数组送入神经网络所在的设备
+    obs = to_tensor(raw_obs[0], targs, False)  # 把观测空间状态数组送入神经网络所在的设备
     
     total_reward = 0                # 累计智能体从环境中获得的总奖励。在每个训练回合结束时，total_reward 将反映智能体在该回合中的总体表现。奖励越高，意味着智能体的性能越好。
     total_loss = 0                  # 累计损失率。反映了预测 Q 值和目标 Q 值之间的差异
@@ -194,7 +194,10 @@ def select_next_action(targs: TrainArgs, obs) :
 
     # 在TD3中，为了探索，通常给动作添加一定的噪声
     noise = np.random.normal(0, targs.noise, size=targs.env.action_space.shape[0])  # 生成噪声向量
-    action = (action + noise).clip(targs.env.action_space.low, targs.env.action_space.high) # 确保 action + noise 依然在动作空间的取值范围内
+
+    min_action = torch.tensor(targs.env.action_space.low, device=targs.device, dtype=torch.float)
+    max_action = torch.tensor(targs.env.action_space.high, device=targs.device, dtype=torch.float)
+    action = (action + noise).clip(min_action, max_action) # 确保 action + noise 依然在动作空间的取值范围内
     return action
 
 
@@ -218,7 +221,8 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
     # log.debug(f"  回合是否中止: {truncated}")     # 回合因为某些约束调节提前中止，如步数限制等。
     # log.debug(f"  其他额外信息: {info}")          # 通常用 hash 表附带自定义的额外信息（如诊断信息、调试信息），暂时不需要用到的额外信息。
     
-    next_obs = to_tensor(next_raw_obs, targs)      # 把观测空间状态数组送入神经网络所在的设备
+    next_obs = to_tensor(next_raw_obs, targs, False)      # 把观测空间状态数组送入神经网络所在的设备
+    # log.debug(f"  next_obs: {next_obs}")
     done = terminated or truncated
     return (next_obs, reward, done)
 
@@ -251,14 +255,20 @@ def td3(targs: TrainArgs, total_loss) :
     batch = Transition(*zip(*transitions))
 
     # 将每个样本的组成部分 (obs, action, reward, next_obs, done) ，拆分转换为独立的批次
-    obs_batch = torch.stack(batch.obs).to(targs.device)
+    obs_batch = torch.stack(batch.obs).to(targs.device).squeeze(1)
     # action_batch = torch.tensor(np.array(batch.action, dtype=np.float32), device=targs.device).unsqueeze(-1)
-    action_batch = torch.tensor(batch.action, dtype=torch.float, device=targs.device).unsqueeze(-1)
+    action_batch = torch.tensor(batch.action, dtype=torch.float, device=targs.device)
     reward_batch = torch.tensor(batch.reward, dtype=torch.float, device=targs.device).unsqueeze(-1)
-    next_obs_batch = torch.stack(batch.next_obs).to(targs.device)
+    next_obs_batch = torch.stack(batch.next_obs).to(targs.device).squeeze(1)
     done_batch = torch.tensor(batch.done, dtype=torch.float, device=targs.device).unsqueeze(-1)
 
-
+    # print(f"batch.obs: {batch.obs}")
+    # print(f"obs_batch: {obs_batch}")
+    # print(f"action_batch: {action_batch}")
+    # print(f"reward_batch: {reward_batch}")
+    # print(f"next_obs_batch: {next_obs_batch}")
+    # print(f"done_batch: {done_batch}")
+    
     # ===============================
     # 更新 Critic 网络
     # ===============================
@@ -267,16 +277,18 @@ def td3(targs: TrainArgs, total_loss) :
         noise_clip = 0.4
         # TD3通过在选取的动作上添加噪声来平滑目标策略
         noise = (torch.randn_like(action_batch) * policy_noise).clamp(-noise_clip, noise_clip)
+        # print(f"noise: {noise}")
 
         # 将NumPy数组转换为PyTorch张量，并确保它们在正确的设备上
         min_action = torch.tensor(targs.env.action_space.low, device=targs.device, dtype=torch.float)
         max_action = torch.tensor(targs.env.action_space.high, device=targs.device, dtype=torch.float)
+        # print(f"min_action: {min_action}")
+        # print(f"max_action: {max_action}")
 
         # 使用转换后的张量作为clamp的参数
         # next_actions = (targs.target_actor_model(next_obs_batch) + noise).clamp(min_action, max_action)
         next_actions = (targs.target_actor_model(next_obs_batch) + noise).clamp(min_action, max_action)
-        print(f"next_obs_batch: {next_obs_batch}")
-        print(f"next_actions: {next_actions}")
+        # print(f"next_actions: {next_actions}")
 
         target_Q1, target_Q2 = targs.target_critic_model(next_obs_batch, next_actions)
         target_Q = torch.min(target_Q1, target_Q2)
