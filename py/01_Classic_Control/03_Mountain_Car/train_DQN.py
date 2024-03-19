@@ -251,10 +251,11 @@ def td3(targs: TrainArgs, total_loss) :
     batch = Transition(*zip(*transitions))
 
     # 将每个样本的组成部分 (obs, action, reward, next_obs, done) ，拆分转换为独立的批次
-    obs_batch = torch.tensor(batch.obs, dtype=torch.float, device=targs.device)
+    obs_batch = torch.stack(batch.obs).to(targs.device)
+    # action_batch = torch.tensor(np.array(batch.action, dtype=np.float32), device=targs.device).unsqueeze(-1)
     action_batch = torch.tensor(batch.action, dtype=torch.float, device=targs.device).unsqueeze(-1)
     reward_batch = torch.tensor(batch.reward, dtype=torch.float, device=targs.device).unsqueeze(-1)
-    next_obs_batch = torch.tensor(batch.next_obs, dtype=torch.float, device=targs.device)
+    next_obs_batch = torch.stack(batch.next_obs).to(targs.device)
     done_batch = torch.tensor(batch.done, dtype=torch.float, device=targs.device).unsqueeze(-1)
 
 
@@ -266,7 +267,16 @@ def td3(targs: TrainArgs, total_loss) :
         noise_clip = 0.4
         # TD3通过在选取的动作上添加噪声来平滑目标策略
         noise = (torch.randn_like(action_batch) * policy_noise).clamp(-noise_clip, noise_clip)
-        next_actions = (targs.target_actor_model(next_obs_batch) + noise).clamp(targs.env.action_space.low, targs.env.action_space.high)
+
+        # 将NumPy数组转换为PyTorch张量，并确保它们在正确的设备上
+        min_action = torch.tensor(targs.env.action_space.low, device=targs.device, dtype=torch.float)
+        max_action = torch.tensor(targs.env.action_space.high, device=targs.device, dtype=torch.float)
+
+        # 使用转换后的张量作为clamp的参数
+        # next_actions = (targs.target_actor_model(next_obs_batch) + noise).clamp(min_action, max_action)
+        next_actions = (targs.target_actor_model(next_obs_batch) + noise).clamp(min_action, max_action)
+        print(f"next_obs_batch: {next_obs_batch}")
+        print(f"next_actions: {next_actions}")
 
         target_Q1, target_Q2 = targs.target_critic_model(next_obs_batch, next_actions)
         target_Q = torch.min(target_Q1, target_Q2)
