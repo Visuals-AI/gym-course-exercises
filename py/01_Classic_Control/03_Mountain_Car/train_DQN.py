@@ -192,12 +192,16 @@ def select_next_action(targs: TrainArgs, obs) :
     else:
         action = targs.env.action_space.sample()
 
+    # print(f"before: {action}")
+
     # 在TD3中，为了探索，通常给动作添加一定的噪声
     noise = np.random.normal(0, targs.noise, size=targs.env.action_space.shape[0])  # 生成噪声向量
 
     min_action = torch.tensor(targs.env.action_space.low, device=targs.device, dtype=torch.float)
     max_action = torch.tensor(targs.env.action_space.high, device=targs.device, dtype=torch.float)
     action = (action + noise).clip(min_action, max_action) # 确保 action + noise 依然在动作空间的取值范围内
+
+    # print(f"after: {action}")
     return action
 
 
@@ -209,10 +213,16 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
     :params: action 下一步动作
     :return: 执行动作后观测空间返回的状态
     '''
-
+    # 确保action为环境可接受的格式
+    if isinstance(action, torch.Tensor):
+        # 转换为NumPy数组并确保是一维的
+        _action = action.numpy().flatten()
+    else :
+        _action = action
+    # print(f"exec: {_action}")
     # 旧版本的 env.step(action) 返回值只有 4 个参数，没有 truncated
     # 但是 truncated 和 info 暂时没用，详见 https://stackoverflow.com/questions/73195438/openai-gyms-env-step-what-are-the-values
-    next_raw_obs, reward, terminated, truncated, info  = targs.env.step(action)
+    next_raw_obs, reward, terminated, truncated, info  = targs.env.step(_action)
     # log.debug(f"[第 {epoch} 回合] 步数={step_counter}")
     # log.debug("执行结果：")
     # log.debug(f"  状态空间变化：{next_raw_obs}")  # 执行动作后的新状态或观察。这是智能体在下一个时间步将观察到的环境状态。
