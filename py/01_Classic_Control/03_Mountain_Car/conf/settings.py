@@ -10,7 +10,7 @@ MODEL_NAME = 'mountain_car_continuous'
 
 # 交互的环境名称
 ENV_NAME = 'MountainCarContinuous-v0'
-MAX_STEP = 200  # MountainCar 问题的 v0 版本要求在 200 步内完成
+MAX_STEP = 999  # MountainCarContinuous 问题的 v0 版本要求在 999 步内完成
 
 
 # 引入公共配置项

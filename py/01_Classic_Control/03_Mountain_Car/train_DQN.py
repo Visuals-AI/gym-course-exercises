@@ -273,10 +273,12 @@ def td3(targs: TrainArgs, total_loss) :
     # 更新 Critic 网络
     # ===============================
     with torch.no_grad():
-        policy_noise = 0.2
-        noise_clip = 0.4
+        raw_act = targs.target_actor_model(next_obs_batch)
+        # print(f"raw_act: {raw_act}")
+
         # TD3通过在选取的动作上添加噪声来平滑目标策略
-        noise = (torch.randn_like(action_batch) * policy_noise).clamp(-noise_clip, noise_clip)
+        noise_clip = 0.4
+        noise = (torch.randn_like(raw_act) * targs.noise).clamp(-noise_clip, noise_clip)  # 假设噪声被限制在[-0.4, 0.4]范围内
         # print(f"noise: {noise}")
 
         # 将NumPy数组转换为PyTorch张量，并确保它们在正确的设备上
@@ -287,7 +289,7 @@ def td3(targs: TrainArgs, total_loss) :
 
         # 使用转换后的张量作为clamp的参数
         # next_actions = (targs.target_actor_model(next_obs_batch) + noise).clamp(min_action, max_action)
-        next_actions = (targs.target_actor_model(next_obs_batch) + noise).clamp(min_action, max_action)
+        next_actions = (raw_act + noise).clamp(min_action, max_action)
         # print(f"next_actions: {next_actions}")
 
         target_Q1, target_Q2 = targs.target_critic_model(next_obs_batch, next_actions)
@@ -295,6 +297,7 @@ def td3(targs: TrainArgs, total_loss) :
         target_Q_values = reward_batch + (1 - done_batch) * targs.gamma * target_Q
 
     # 计算当前Critic网络的Q值
+    action_batch = action_batch.unsqueeze(-1)   # 升维，变成 [32,1]
     current_Q1, current_Q2 = targs.critic_model(obs_batch, action_batch)
     critic_loss = F.mse_loss(current_Q1, target_Q_values) + F.mse_loss(current_Q2, target_Q_values)
 
