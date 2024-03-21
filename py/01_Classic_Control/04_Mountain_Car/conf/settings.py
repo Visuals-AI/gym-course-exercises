@@ -4,6 +4,8 @@
 # @Time   : 2023/11/25 23:56
 # -----------------------------------------------
 
+# 课程名字
+COURSE_NAME = 'mountain_car'
 
 # 训练的模型名称
 MODEL_NAME = 'mountain_car'

@@ -54,7 +54,7 @@ def arguments() :
     parser.add_argument('-d', '--epsilon_decay', dest='epsilon_decay', type=float, default=0.995, help='衰减率: 探索率随时间逐渐减小的速率。每经过一个回合，epsilon 将乘以这个衰减率，从而随着时间的推移减少随机探索的频率')
     parser.add_argument('-m', '--min_epsilon', dest='min_epsilon', type=float, default=0.1, help='最小探索率: 即使经过多次衰减，探索率也不会低于这个值，确保了即使在后期也有一定程度的探索')
     parser.add_argument('-b', '--batch_size', dest='batch_size', type=int, default=32, help='从经验回放存储中一次抽取并用于训练网络的经验的样本数。默认值为 32，即每次训练时会使用 32 个经验样本')
-    parser.add_argument('-t', '--tensor_logs', dest='tensor_logs', type=str, default=get_tensor_path(MODEL_NAME), help='TensorBoardX 日志目录')
+    parser.add_argument('-t', '--tensor_logs', dest='tensor_logs', type=str, default=get_tensor_path(COURSE_NAME), help='TensorBoardX 日志目录')
     return parser.parse_args()
 
 

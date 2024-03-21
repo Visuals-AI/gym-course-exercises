@@ -126,7 +126,7 @@ class Tagger :
         :params: epoch 回合数
         :return: None
         '''
-        path = get_render_ui_path(MODEL_NAME, epoch, self.eval)
+        path = get_render_ui_path(COURSE_NAME, MODEL_NAME, epoch, self.eval)
         dir = os.path.dirname(path)
         create_dirs(dir)
         imageio.mimwrite(path, self.frames, duration=self.fps)
