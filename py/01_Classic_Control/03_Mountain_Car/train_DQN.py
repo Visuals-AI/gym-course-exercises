@@ -55,6 +55,7 @@ def arguments() :
     parser.add_argument('-d', '--epsilon_decay', dest='epsilon_decay', type=float, default=0.995, help='衰减率: 探索率随时间逐渐减小的速率。每经过一个回合，epsilon 将乘以这个衰减率，从而随着时间的推移减少随机探索的频率')
     parser.add_argument('-m', '--min_epsilon', dest='min_epsilon', type=float, default=0.1, help='最小探索率: 即使经过多次衰减，探索率也不会低于这个值，确保了即使在后期也有一定程度的探索')
     parser.add_argument('-n', '--noise', dest='noise', type=float, default=0.1, help='TD3 算法的噪声强度，经验值。例如若动作空间的范围是 [-1, 1]，则噪声为 0.1 意味着在动作值的 10% 范围内波动')
+    parser.add_argument('-n', '--noise_limit', dest='noise_limit', type=float, default=0.4, help='TD3 算法的噪声波动幅度，相对于动作空间范围设定。默认 0.4，即噪声如何波动都不会超出 [-0.4, 0.4] 的幅度')
     parser.add_argument('-w', '--tau', dest='tau', type=float, default=0.005, help='目标网络的更新率，决定了主网络对目标网络的影响程度，通常设置为一个很小的值')
     parser.add_argument('-b', '--batch_size', dest='batch_size', type=int, default=32, help='从经验回放存储中一次抽取并用于训练网络的经验的样本数。默认值为 32，即每次训练时会使用 32 个经验样本')
     parser.add_argument('-t', '--tensor_logs', dest='tensor_logs', type=str, default=get_tensor_path(MODEL_NAME), help='TensorBoardX 日志目录')
@@ -287,8 +288,7 @@ def td3(targs: TrainArgs, total_loss) :
         # print(f"raw_act: {raw_act}")
 
         # TD3通过在选取的动作上添加噪声来平滑目标策略
-        noise_clip = 0.4
-        noise = (torch.randn_like(raw_act) * targs.noise).clamp(-noise_clip, noise_clip)  # 假设噪声被限制在[-0.4, 0.4]范围内
+        noise = (torch.randn_like(raw_act) * targs.noise).clamp(-targs.noise_limit, targs.noise_limit)  # 假设噪声被限制在[-0.4, 0.4]范围内
         # print(f"noise: {noise}")
 
         # 将NumPy数组转换为PyTorch张量，并确保它们在正确的设备上
@@ -307,7 +307,9 @@ def td3(targs: TrainArgs, total_loss) :
         target_Q_values = reward_batch + (1 - done_batch) * targs.gamma * target_Q
 
     # 计算当前Critic网络的Q值
-    action_batch = action_batch.unsqueeze(-1)   # 升维，变成 [32,1]
+    # before: 一维数组，长度为 32
+    action_batch = action_batch.unsqueeze(-1)   
+    # after: 升维，形状变成 32x1
     current_Q1, current_Q2 = targs.critic_model(obs_batch, action_batch)
     critic_loss = F.mse_loss(current_Q1, target_Q_values) + F.mse_loss(current_Q2, target_Q_values)
 
@@ -320,8 +322,7 @@ def td3(targs: TrainArgs, total_loss) :
     # 延迟更新Actor网络
     # ===============================
     # 在TD3中，Actor网络的更新频率较低（例如，每2次Critic更新后更新一次Actor），以减少策略的方差。
-    policy_update_interval = 2
-    if total_loss % policy_update_interval == 0:
+    if total_loss % targs.update_action_every == 0:
         actor_loss = -targs.critic_model.Q1(obs_batch, targs.actor_model(obs_batch)).mean()
 
         targs.actor_optimizer.zero_grad()
@@ -365,86 +366,6 @@ def soft_update(target, source, tau):
 
     # # 累积损失更新
     # total_loss += loss.item()
-
-
-def cat_batch_tensor(batch_data, data_type, up_dim=False) :
-    '''
-    连接一批张量
-    :params: batch_data 一批张量数据
-    :params: data_type 张量元素的数据类型
-    :params: up_dim 是否需要升维。当且仅当张量数据是 0 维标量时，才需要升维，否则 torch.cat 会报错
-    :return: 连接后的张量
-    '''
-    batch_tensor = [torch.tensor([d], dtype=data_type) for d in batch_data] \
-                if up_dim else \
-            [d.clone().detach() for d in batch_data]
-    return torch.cat(batch_tensor)
-
-
-def get_current_Q_values(model, obs_batch, action_batch) :
-    '''
-    获取当前状态下的 Q 值（真实值）
-    :params: model 主网络/主模型。在 DQN 算法中，通常使用两个网络：主网络（用于选择动作和更新），目标网络（用于计算目标 Q 值）。
-    :params: obs_batch 观测空间的当前状态批量数据。
-    :params: action_batch 动作空间的批量数据
-    :return: 
-    '''
-
-    # 步骤 1: 将观测数据（状态）输入到模型中，以获取每个状态下所有动作的预测 Q 值。
-    # obs_batch 是当前状态的批量数据
-    predicted_Q_values = model(obs_batch)
-
-    # 步骤 2: 对动作张量进行处理，以使其维度与预测的 Q 值张量匹配。
-    # action_batch 包含了每个状态下选择的动作。
-    # unsqueeze(1) 是将 action_batch 从 [batch_size] 转换为 [batch_size, 1]
-    # 这是为了在接下来的操作中能够选择正确的 Q 值。
-    actions_unsqueezed = action_batch.unsqueeze(1)
-
-    # 步骤 3: 从预测的 Q 值中选择对应于实际采取的动作的 Q 值。
-    # gather 函数在这里用于实现这一点。
-    # 第一个参数 1 表示操作在第二维度（动作维度）上进行。
-    # actions_unsqueezed 用作索引，指定从每一行（每个状态）中选择哪个动作的 Q 值。
-    cur_Q_values = predicted_Q_values.gather(1, actions_unsqueezed)
-    return cur_Q_values
-
-
-def calculate_expected_Q_values(target_model, gamma, next_obs_batch, reward_batch, done_batch) :
-    '''
-    计算下一个状态的最大预测 Q 值
-    :params: target_model 目标网络/目标模型。在 DQN 算法中，通常使用两个网络：主网络（用于选择动作和更新），目标网络（用于计算目标 Q 值）。目标网络的参数定期从主网络复制过来，但在更新间隔内保持不变。这有助于稳定学习过程。
-    :params: gamma 折扣因子: 用于折算未来奖励的在当前回合中的价值。
-    :params: next_obs_batch 执行动作后、观测空间的状态批量数据。
-    :params: reward_batch 执行动作后、获得奖励的批量数据
-    :params: done_batch 回合完成状态的批量数据
-    :return: 
-    '''
-
-    # target_model(next_obs_batch): 将下一个状态的批量数据输入目标网络，得到每个状态下每个可能动作的预测 Q 值。
-    # detach(): 用于切断这些 Q 值与计算图的联系。它会创建一个新的张量，它与原始数据共享内容，但不参与梯度计算。这在计算目标 Q 值时很常见，因为我们不希望在反向传播中更新目标网络。
-    # max(1)：用于找出每个状态的所有动作 Q 值中的最大值。.max(1) 的 1 表示操作是在张量的第二个维度上进行的（即动作维度）
-    # [0]：从 .max(1) 返回的结果中，只取最大值。因为 .max(1) 返回一个元组，其中第一个元素（索引为 0 的元素）是每一行的最大值。
-    next_Q_values = target_model(next_obs_batch).detach().max(1)[0]
-
-    # 这个公式基于贝尔曼方程（思路和动态规划一样）
-    # 这个公式表明，一个动作的预期 Q 值等于即时奖励加上在下一个状态下所有可能动作的最大预期 Q 值的折扣值。这个折扣值反映了未来奖励的当前价值。
-    expected_Q_values = reward_batch + (gamma * next_Q_values * (1 - done_batch))
-
-    # 为什么要乘以 (1 - done_batch)
-    # 当一个回合结束时（例如智能体到达了目标状态或触发了游戏结束的条件），在该状态下没有未来的奖励。
-    # 乘以 (1 - done_batch) 确保了如果回合结束，未来奖励的贡献为零。
-    # 换句话说，如果 done_batch 中的值为 1（表示回合结束），next_Q_values 将不会对计算的 expected_Q_values 产生影响。
-    return expected_Q_values
-
-
-def optimize_params(model, optimizer, loss) :
-    # 优化模型
-    optimizer.zero_grad() # 清除之前的梯度。PyTorch 会默认累积梯度，如果不清除梯度，新计算的梯度会被加到已存在的梯度上，在 DQN 中这会使得训练过程变得不稳定，甚至可能导致模型完全无法学习。
-    loss.backward()             # 反向传播，计算梯度
-    # 梯度裁剪，防止梯度爆炸
-    # 梯度爆炸会导致模型权重的大幅更新，使得模型无法收敛或表现出不稳定的行为
-    for param in model.parameters() :
-        param.grad.data.clamp_(-1, 1)   # 限制梯度值在 -1 到 1 的范围内，这是防止梯度值变得过大或过小、导致训练不稳定
-    optimizer.step()      # 更新参数（梯度下降，指使用计算出的梯度来更新模型参数的过程）
 
 
 
