@@ -159,7 +159,7 @@ class TrainArgs :
         if self.zero :
             return  # 强制从零开始训练，不加载检查点
         
-        last_cp = self.cp_mgr.load_last_checkpoint()
+        last_cp = self.cp_mgr.load_last_checkpoint(MODEL_NAME)
         if last_cp :
             self.last_epoch = last_cp.epoch + 1
             self.cur_epsilon = last_cp.epsilon

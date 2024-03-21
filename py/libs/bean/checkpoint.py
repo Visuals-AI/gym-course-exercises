@@ -85,13 +85,14 @@ class CheckpointManager:
         return is_save
 
 
-    def load_last_checkpoint(self) -> Checkpoint :
+    def load_last_checkpoint(self, model_name) -> Checkpoint :
         '''
         加载最后一次记录的训练检查点
+        :params: model_name 模型名称
         :return: 检查点对象
         '''
         last_time = ''
-        checkpoint_names = [f for f in os.listdir(self.checkpoints_dir) if f.endswith(CHECKPOINT_SUFFIX)]
+        checkpoint_names = [f for f in os.listdir(self.checkpoints_dir) if f.startswith(model_name) and f.endswith(CHECKPOINT_SUFFIX)]
         for cpn in checkpoint_names :
             _datetime = re.search(r'\d+', cpn)[0]
             last_time = max(last_time, _datetime)

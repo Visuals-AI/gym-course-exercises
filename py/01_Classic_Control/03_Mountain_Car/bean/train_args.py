@@ -184,11 +184,13 @@ class TrainArgs :
         :return: None
         '''
         if epoch % self.update_target_every == 0:
-            for target_param, param in zip(self.target_actor_model.parameters(), self.actor_model.parameters()):
-                target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
-            
-            for target_param, param in zip(self.target_critic_model.parameters(), self.critic_model.parameters()):
-                target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+            target_models = [ self.target_actor_model, self.target_critic_model ]
+            models = [ self.actor_model, self.critic_model ]
+
+            size = len(target_models)
+            for idx in range(size) :
+                for target_param, param in zip(target_models[idx].parameters(), models[idx].parameters()):
+                    target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
 
         
@@ -200,12 +202,13 @@ class TrainArgs :
         if self.zero :
             return  # 强制从零开始训练，不加载检查点
         
+        model_names = [ ACT_MODEL_NAME, Q_MODEL_NAME ]
         mgrs = [ self.act_mgr, self.q_mgr ]
         models = [ self.actor_model, self.critic_model ]
         optimizers = [ self.actor_optimizer, self.critic_optimizer ]
         
         for idx, mgr in enumerate(mgrs) :
-            last_cp = mgr.load_last_checkpoint()
+            last_cp = mgr.load_last_checkpoint(model_names[idx])
             if last_cp :
                 self.last_epoch = last_cp.epoch + 1
                 self.cur_epsilon = last_cp.epsilon
