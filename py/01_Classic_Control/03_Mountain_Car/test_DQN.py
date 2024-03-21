@@ -56,7 +56,7 @@ def main(args) :
 
 
 def test_models(args) :
-    model_dir = os.path.dirname(get_model_path(MODEL_NAME))
+    model_dir = os.path.dirname(get_model_path(COURSE_NAME, MODEL_NAME))
     path_pattern = os.path.join(model_dir, f"*{MODEL_SUFFIX}")
     model_paths = glob.glob(path_pattern)
 

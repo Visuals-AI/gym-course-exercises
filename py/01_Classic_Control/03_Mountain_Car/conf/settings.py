@@ -4,9 +4,12 @@
 # @Time   : 2023/11/25 23:56
 # -----------------------------------------------
 
+# 课程名字
+COURSE_NAME = 'mountain_car_continuous'
 
 # 训练的模型名称
-MODEL_NAME = 'mountain_car_continuous'
+ACT_MODEL_NAME = 'actor'
+Q_MODEL_NAME = 'critic'
 
 # 交互的环境名称
 ENV_NAME = 'MountainCarContinuous-v0'

@@ -55,10 +55,10 @@ def arguments() :
     parser.add_argument('-d', '--epsilon_decay', dest='epsilon_decay', type=float, default=0.995, help='衰减率: 探索率随时间逐渐减小的速率。每经过一个回合，epsilon 将乘以这个衰减率，从而随着时间的推移减少随机探索的频率')
     parser.add_argument('-m', '--min_epsilon', dest='min_epsilon', type=float, default=0.1, help='最小探索率: 即使经过多次衰减，探索率也不会低于这个值，确保了即使在后期也有一定程度的探索')
     parser.add_argument('-n', '--noise', dest='noise', type=float, default=0.1, help='TD3 算法的噪声强度，经验值。例如若动作空间的范围是 [-1, 1]，则噪声为 0.1 意味着在动作值的 10% 范围内波动')
-    parser.add_argument('-n', '--noise_limit', dest='noise_limit', type=float, default=0.4, help='TD3 算法的噪声波动幅度，相对于动作空间范围设定。默认 0.4，即噪声如何波动都不会超出 [-0.4, 0.4] 的幅度')
+    parser.add_argument('-o', '--noise_limit', dest='noise_limit', type=float, default=0.4, help='TD3 算法的噪声波动幅度，相对于动作空间范围设定。默认 0.4，即噪声如何波动都不会超出 [-0.4, 0.4] 的幅度')
     parser.add_argument('-w', '--tau', dest='tau', type=float, default=0.005, help='目标网络的更新率，决定了主网络对目标网络的影响程度，通常设置为一个很小的值')
     parser.add_argument('-b', '--batch_size', dest='batch_size', type=int, default=32, help='从经验回放存储中一次抽取并用于训练网络的经验的样本数。默认值为 32，即每次训练时会使用 32 个经验样本')
-    parser.add_argument('-t', '--tensor_logs', dest='tensor_logs', type=str, default=get_tensor_path(MODEL_NAME), help='TensorBoardX 日志目录')
+    parser.add_argument('-t', '--tensor_logs', dest='tensor_logs', type=str, default=get_tensor_path(COURSE_NAME), help='TensorBoardX 日志目录')
     return parser.parse_args()
 
 
@@ -81,7 +81,7 @@ def train_td3(targs: TrainArgs) :
     :return: None
     '''
     writer = SummaryWriter(logdir=targs.tensor_logs) # 训练过程记录器，可用 TensorBoard 查看
-    # targs.load_last_checkpoint()                    # 加载最后一次训练的状态和参数
+    targs.load_last_checkpoint()                    # 加载最后一次训练的状态和参数
 
     log.info("++++++++++++++++++++++++++++++++++++++++")
     log.info("开始训练 ...")
@@ -91,7 +91,7 @@ def train_td3(targs: TrainArgs) :
 
         targs.update_target_model(epoch)        # 更新目标模型
         epsilon = targs.update_epsilon()        # 衰减探索率
-        # targs.save_checkpoint(epoch, epsilon)   # 保存当次训练的状态和参数（用于断点训练）
+        targs.save_checkpoint(epoch, epsilon)   # 保存当次训练的状态和参数（用于断点训练）
         time.sleep(0.01)
 
     writer.close()
@@ -168,8 +168,8 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     writer.add_scalar('通常/每回合完成时间', finish_time, epoch)
     writer.add_scalar('通常/每回合总奖励', total_reward, epoch)
     writer.add_scalar('通常/每回合平均损失', total_loss / step_counter, epoch)
-    # writer.add_scalar('特殊/每回合学习率', targs.optimizer.param_groups[0]['lr'], epoch)
-    # writer.add_histogram('特殊/每回合 Q 值分布', targs.model(obs), epoch)     # 用于了解模型对每个状态-动作对的估计
+    writer.add_scalar('特殊/每回合学习率 (actor)', targs.actor_optimizer.param_groups[0]['lr'], epoch)
+    writer.add_scalar('特殊/每回合学习率 (critic)', targs.critic_optimizer.param_groups[0]['lr'], epoch)
     return
 
 

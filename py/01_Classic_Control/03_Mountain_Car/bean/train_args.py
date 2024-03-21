@@ -42,11 +42,13 @@ class TrainArgs :
 
         if eval :
             self.tagger = Tagger(ENV_NAME, True)
-            self.model.eval()   # 评估模式
+            self.actor_model.eval()   # 评估模式
+            self.critic_model.eval()
 
         else :
             self.tagger = Tagger(ENV_NAME, False)
-            self.cp_mgr = CheckpointManager(MODEL_NAME) # checkpoint 管理器
+            self.act_mgr = CheckpointManager(COURSE_NAME, ACT_MODEL_NAME) # checkpoint 管理器
+            self.q_mgr = CheckpointManager(COURSE_NAME, Q_MODEL_NAME)
 
             self.actor_optimizer = optim.Adam(self.actor_model.parameters(), lr=args.lr)    # 用于训练神经网络的优化器。这里使用的是 Adam 优化器，一个流行的梯度下降变种，lr=0.001设置了学习率为0.001。
             self.critic_optimizer = optim.Adam(self.critic_model.parameters(), lr=args.lr)
@@ -198,13 +200,18 @@ class TrainArgs :
         if self.zero :
             return  # 强制从零开始训练，不加载检查点
         
-        last_cp = self.cp_mgr.load_last_checkpoint()
-        if last_cp :
-            self.last_epoch = last_cp.epoch + 1
-            self.cur_epsilon = last_cp.epsilon
-            self.info = last_cp.info
-            self.model.load_state_dict(last_cp.model_state_dict)
-            self.optimizer.load_state_dict(last_cp.optimizer_state_dict)
+        mgrs = [ self.act_mgr, self.q_mgr ]
+        models = [ self.actor_model, self.critic_model ]
+        optimizers = [ self.actor_optimizer, self.critic_optimizer ]
+        
+        for idx, mgr in enumerate(mgrs) :
+            last_cp = mgr.load_last_checkpoint()
+            if last_cp :
+                self.last_epoch = last_cp.epoch + 1
+                self.cur_epsilon = last_cp.epsilon
+                self.info = last_cp.info
+                models[idx].load_state_dict(last_cp.model_state_dict)
+                optimizers[idx].load_state_dict(last_cp.optimizer_state_dict)
         return
 
 
@@ -221,13 +228,19 @@ class TrainArgs :
         if force and (epsilon < 0) :
             epsilon = self.cur_epsilon
 
-        return self.cp_mgr.save_checkpoint(
-            self.model, 
-            self.optimizer, 
-            epoch, 
-            epsilon, 
-            info
-        )
+        mgrs = [ self.act_mgr, self.q_mgr ]
+        models = [ self.actor_model, self.critic_model ]
+        optimizers = [ self.actor_optimizer, self.critic_optimizer ]
+        is_ok = True
+        for idx, mgr in enumerate(mgrs) :
+            is_ok &= mgr.save_checkpoint(
+                models[idx], 
+                optimizers[idx], 
+                epoch, 
+                epsilon, 
+                info
+            )
+        return is_ok
 
 
     # 每轮训练后对探索率进行衰减。
