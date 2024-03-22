@@ -85,3 +85,57 @@ def _to_tensor(obs_state, device):
     else:
         return obs_state
 
+
+
+def to_nparray(act_state) :
+    '''
+    把动作空间的当前状态转换为 Numpy 张量并送入神经网络
+    :params: act_state 动作空间的当前状态
+    :return: 动作空间数组
+    '''
+    if isinstance(act_state, torch.Tensor):
+        action = act_state.numpy().flatten()
+    else :
+        action = act_state
+    return action
+
+
+def up_dim(low_tensor) :
+    '''
+    对张量升维。
+
+    如 tensor([1 2 3 4]) 长度为 4 的一维张量，
+    会升维为形状为 4x1 的二维张量 （4 行 1 列）
+        tensor(
+            [
+                [1] 
+                [2] 
+                [3] 
+                [4]
+            ]
+        )
+    :params: low_tensor 低维张量
+    :return: 高维张量
+    '''
+    return low_tensor.unsqueeze(-1)
+
+
+def down_dim(high_tensor) :
+    '''
+    对张量降维。
+    
+    如形状为 4x1 的二维张量 （4 行 1 列）
+        tensor(
+            [
+                [1] 
+                [2] 
+                [3] 
+                [4]
+            ]
+        )
+    会降维成 tensor([1 2 3 4]) 长度为 4 的一维张量
+    :params: high_tensor 高维张量
+    :return: 高维张量
+    '''
+    return high_tensor.squeeze(-1)
+

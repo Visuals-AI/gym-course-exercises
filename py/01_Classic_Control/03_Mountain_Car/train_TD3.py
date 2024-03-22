@@ -67,7 +67,7 @@ def main(args) :
     targs = TrainArgs(args)
 
     # 实现 “训练算法” 以进行训练
-    # 针对 MountainCar 问题， TD3 算法会更适合：
+    # 针对 MountainCarContinuous 问题， TD3 算法会更适合：
     #   DDPG（Deep Deterministic Policy Gradient）：结合了策略梯度和 Q 学习的算法，特别适用于连续动作空间。
     #   TD3（Twin Delayed DDPG）：是 DDPG 的改进版本，通过使用两个 Q 网络和延迟策略更新来减少过高估计和提高稳定性。
     train_td3(targs)
@@ -129,7 +129,15 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         next_obs, reward, done = exec_next_action(targs, action, epoch, step_counter)
 
         # 向【经验回放存储】添加当前 step 执行前后状态、奖励情况等
-        targs.memory.append((obs, action, reward, next_obs, done))
+        targs.memory.append(
+            (
+                obs, 
+                action,     # array len 1
+                reward, 
+                next_obs, 
+                done
+            )
+        )
 
         obs = next_obs          # 更新当前状态
         total_reward += reward  # 累计奖励（每一步的奖励是 env 决定的，由于 env 使用默认环境，所以这里无法调整每一步的奖励）
@@ -152,7 +160,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         if done:
             break
 
-        td3(targs, total_loss)  # DQN 学习（核心算法，从【经验回放存储】中收集经验）
+        td3(targs, total_loss)  # TD3 学习（核心算法，从【经验回放存储】中收集经验）
     # while end
 
     # 保存智能体这个回合渲染的动作 UI
@@ -189,20 +197,29 @@ def select_next_action(targs: TrainArgs, obs) :
         with torch.no_grad() :  # 暂时禁用梯度计算
             # actor_model(obs) == actor_model.forward(obs) ， 这是 PyTorch 的语法糖
             # .cpu().data.numpy()， 把张量移动到 CPU 上作为动作输出，确保兼容性。 如果一直都在一个设备，可替换为 .detach()
-            action = targs.actor_model(obs).detach()
+            action = targs.actor_model(obs).detach()    # array len 1
     else:
-        action = targs.env.action_space.sample()
+        action = targs.env.action_space.sample()        # array len 1
 
-    # print(f"before: {action}")
 
-    # 在TD3中，为了探索，通常给动作添加一定的噪声
-    noise = np.random.normal(0, targs.noise, size=targs.env.action_space.shape[0])  # 生成噪声向量
+    # 在 TD3 中，为了探索，通常给动作添加一定的噪声
+    noise = np.random.normal(0, targs.noise, size=targs.env.action_space.shape[0])  # array len 1
+    action = add_noise(targs, action, noise)    # tensor len 1
+    return to_nparray(action)     # array len 1
 
+
+
+def add_noise(targs: TrainArgs, action, noise) :
+    '''
+    为 action 添加噪音：TD3 通过在选取的动作上添加噪声来平滑目标策略
+    :params: targs 用于训练的环境和模型关键参数
+    :params: action 动作张量        array or tensor
+    :params: noise 噪音张量         array or tensor
+    :return: 添加噪音的动作张量      tensor （维度和形状 与 action和noise 一致）
+    '''
     min_action = torch.tensor(targs.env.action_space.low, device=targs.device, dtype=torch.float)
     max_action = torch.tensor(targs.env.action_space.high, device=targs.device, dtype=torch.float)
     action = (action + noise).clip(min_action, max_action) # 确保 action + noise 依然在动作空间的取值范围内
-
-    # print(f"after: {action}")
     return action
 
 
@@ -214,16 +231,9 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
     :params: action 下一步动作
     :return: 执行动作后观测空间返回的状态
     '''
-    # 确保action为环境可接受的格式
-    if isinstance(action, torch.Tensor):
-        # 转换为NumPy数组并确保是一维的
-        _action = action.numpy().flatten()
-    else :
-        _action = action
-    # print(f"exec: {_action}")
     # 旧版本的 env.step(action) 返回值只有 4 个参数，没有 truncated
     # 但是 truncated 和 info 暂时没用，详见 https://stackoverflow.com/questions/73195438/openai-gyms-env-step-what-are-the-values
-    next_raw_obs, reward, terminated, truncated, info  = targs.env.step(_action)
+    next_raw_obs, reward, terminated, truncated, info  = targs.env.step(action)
     # log.debug(f"[第 {epoch} 回合] 步数={step_counter}")
     # log.debug("执行结果：")
     # log.debug(f"  状态空间变化：{next_raw_obs}")  # 执行动作后的新状态或观察。这是智能体在下一个时间步将观察到的环境状态。
@@ -267,50 +277,39 @@ def td3(targs: TrainArgs, total_loss) :
 
     # 将每个样本的组成部分 (obs, action, reward, next_obs, done) ，拆分转换为独立的批次
     obs_batch = torch.stack(batch.obs).to(targs.device).squeeze(1)
-    # action_batch = torch.tensor(np.array(batch.action, dtype=np.float32), device=targs.device).unsqueeze(-1)
-    action_batch = torch.tensor(batch.action, dtype=torch.float, device=targs.device)
+    act_batch = torch.tensor(np.array(batch.action), dtype=torch.float, device=targs.device)
     reward_batch = torch.tensor(batch.reward, dtype=torch.float, device=targs.device).unsqueeze(-1)
     next_obs_batch = torch.stack(batch.next_obs).to(targs.device).squeeze(1)
     done_batch = torch.tensor(batch.done, dtype=torch.float, device=targs.device).unsqueeze(-1)
 
-    # print(f"batch.obs: {batch.obs}")
-    # print(f"obs_batch: {obs_batch}")
-    # print(f"action_batch: {action_batch}")
-    # print(f"reward_batch: {reward_batch}")
-    # print(f"next_obs_batch: {next_obs_batch}")
-    # print(f"done_batch: {done_batch}")
+    # print(f"obs_batch: {obs_batch}")              # tensor 32x2
+    # print(f"act_batch: {act_batch}")              # tensor 32x1
+    # print(f"reward_batch: {reward_batch}")        # tensor 32x1
+    # print(f"next_obs_batch: {next_obs_batch}")    # tensor 32x2
+    # print(f"done_batch: {done_batch}")            # tensor 32x1
     
     # ===============================
     # 更新 Critic 网络
     # ===============================
     with torch.no_grad():
-        raw_act = targs.target_actor_model(next_obs_batch)
-        # print(f"raw_act: {raw_act}")
+        next_act_batch = targs.target_actor_model(next_obs_batch)  # tensor 32x1
+        noise_batch = (torch.randn_like(next_act_batch) * targs.noise).clip(-targs.noise_limit, targs.noise_limit) 
+        next_act_batch = add_noise(targs, next_act_batch, noise_batch)   # tensor 32x1
 
-        # TD3通过在选取的动作上添加噪声来平滑目标策略
-        noise = (torch.randn_like(raw_act) * targs.noise).clamp(-targs.noise_limit, targs.noise_limit)  # 假设噪声被限制在[-0.4, 0.4]范围内
-        # print(f"noise: {noise}")
-
-        # 将NumPy数组转换为PyTorch张量，并确保它们在正确的设备上
-        min_action = torch.tensor(targs.env.action_space.low, device=targs.device, dtype=torch.float)
-        max_action = torch.tensor(targs.env.action_space.high, device=targs.device, dtype=torch.float)
-        # print(f"min_action: {min_action}")
-        # print(f"max_action: {max_action}")
-
-        # 使用转换后的张量作为clamp的参数
-        # next_actions = (targs.target_actor_model(next_obs_batch) + noise).clamp(min_action, max_action)
-        next_actions = (raw_act + noise).clamp(min_action, max_action)
-        # print(f"next_actions: {next_actions}")
-
-        target_Q1, target_Q2 = targs.target_critic_model(next_obs_batch, next_actions)
+        # next_obs_batch 必须形状 tensor 32x2
+        # next_act_batch 必须形状 tensor 32x1
+        target_Q1, target_Q2 = targs.target_critic_model(next_obs_batch, next_act_batch)
         target_Q = torch.min(target_Q1, target_Q2)
         target_Q_values = reward_batch + (1 - done_batch) * targs.gamma * target_Q
 
     # 计算当前Critic网络的Q值
     # before: 一维数组，长度为 32
-    action_batch = action_batch.unsqueeze(-1)   
+    # act_batch = act_batch.unsqueeze(-1)   
     # after: 升维，形状变成 32x1
-    current_Q1, current_Q2 = targs.critic_model(obs_batch, action_batch)
+    
+    # obs_batch 必须形状 tensor 32x2
+    # act_batch 必须形状 tensor 32x1
+    current_Q1, current_Q2 = targs.critic_model(obs_batch, act_batch)
     critic_loss = F.mse_loss(current_Q1, target_Q_values) + F.mse_loss(current_Q2, target_Q_values)
 
     targs.critic_optimizer.zero_grad()
@@ -346,7 +345,7 @@ def soft_update(target, source, tau):
 
 
     # 获得当前状态下的 Q 值（对当前状态的观测进行前向传播的结果，用于后续计算损失）
-    # current_Q_values = get_current_Q_values(targs.model, obs_batch, action_batch)
+    # current_Q_values = get_current_Q_values(targs.model, obs_batch, act_batch)
 
     # # 计算下一个状态的最大预测 Q 值
     # expected_q_values = calculate_expected_Q_values(
