@@ -42,7 +42,7 @@ class TrainArgs :
 
         else :
             self.tagger = Tagger(COURSE_NAME, MODEL_NAME, ENV_NAME, False)
-            self.cp_mgr = CheckpointManager(= CheckpointManager(COURSE_NAME, MODEL_NAME) # checkpoint 管理器
+            self.cp_mgr = CheckpointManager(COURSE_NAME, MODEL_NAME) # checkpoint 管理器
 
             self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr)    # 用于训练神经网络的优化器。这里使用的是 Adam 优化器，一个流行的梯度下降变种，lr=0.001设置了学习率为0.001。
             self.criterion = nn.MSELoss()                                       # 用于训练过程中的损失函数。这里使用的是均方误差损失（MSE Loss），它是评估神经网络预测值与实际值差异的常用方法。
