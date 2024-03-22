@@ -137,5 +137,5 @@ def down_dim(high_tensor) :
     :params: high_tensor 高维张量
     :return: 高维张量
     '''
-    return high_tensor.squeeze(-1)
+    return high_tensor.squeeze(1)
 

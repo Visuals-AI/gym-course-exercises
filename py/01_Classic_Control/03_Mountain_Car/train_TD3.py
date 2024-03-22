@@ -160,7 +160,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         if done:
             break
 
-        td3(targs, total_loss)  # TD3 学习（核心算法，从【经验回放存储】中收集经验）
+        total_loss = td3(targs, total_loss)  # TD3 学习（核心算法，从【经验回放存储】中收集经验）
     # while end
 
     # 保存智能体这个回合渲染的动作 UI
@@ -257,6 +257,7 @@ def td3(targs: TrainArgs, total_loss) :
         通过迭代这个过程，使得神经网络逐渐学习到一个策略，该策略可以最大化累积奖励。
     :params: targs 用于训练的环境和模型关键参数
     :params: action 下一步动作
+    :params: total_loss 累积损失
     :return: 执行动作后观测空间返回的状态
     '''
 
@@ -276,11 +277,11 @@ def td3(targs: TrainArgs, total_loss) :
     batch = Transition(*zip(*transitions))
 
     # 将每个样本的组成部分 (obs, action, reward, next_obs, done) ，拆分转换为独立的批次
-    obs_batch = torch.stack(batch.obs).to(targs.device).squeeze(1)
+    obs_batch = down_dim(torch.stack(batch.obs).to(targs.device))
     act_batch = torch.tensor(np.array(batch.action), dtype=torch.float, device=targs.device)
-    reward_batch = torch.tensor(batch.reward, dtype=torch.float, device=targs.device).unsqueeze(-1)
-    next_obs_batch = torch.stack(batch.next_obs).to(targs.device).squeeze(1)
-    done_batch = torch.tensor(batch.done, dtype=torch.float, device=targs.device).unsqueeze(-1)
+    reward_batch = up_dim(torch.tensor(batch.reward, dtype=torch.float, device=targs.device))
+    next_obs_batch = down_dim(torch.stack(batch.next_obs).to(targs.device))
+    done_batch = up_dim(torch.tensor(batch.done, dtype=torch.float, device=targs.device))
 
     # print(f"obs_batch: {obs_batch}")              # tensor 32x2
     # print(f"act_batch: {act_batch}")              # tensor 32x1
@@ -288,9 +289,12 @@ def td3(targs: TrainArgs, total_loss) :
     # print(f"next_obs_batch: {next_obs_batch}")    # tensor 32x2
     # print(f"done_batch: {done_batch}")            # tensor 32x1
     
+
     # ===============================
     # 更新 Critic 网络
     # ===============================
+
+    # 计算下一个状态的最大预测 Q 值
     with torch.no_grad():
         next_act_batch = targs.target_actor_model(next_obs_batch)  # tensor 32x1
         noise_batch = (torch.randn_like(next_act_batch) * targs.noise).clip(-targs.noise_limit, targs.noise_limit) 
@@ -302,11 +306,8 @@ def td3(targs: TrainArgs, total_loss) :
         target_Q = torch.min(target_Q1, target_Q2)
         target_Q_values = reward_batch + (1 - done_batch) * targs.gamma * target_Q
 
-    # 计算当前Critic网络的Q值
-    # before: 一维数组，长度为 32
-    # act_batch = act_batch.unsqueeze(-1)   
-    # after: 升维，形状变成 32x1
-    
+
+    # 获得当前状态下的 Q 值（对当前状态的观测进行前向传播的结果，用于后续计算损失）
     # obs_batch 必须形状 tensor 32x2
     # act_batch 必须形状 tensor 32x1
     current_Q1, current_Q2 = targs.critic_model(obs_batch, act_batch)
@@ -318,29 +319,15 @@ def td3(targs: TrainArgs, total_loss) :
 
 
     # ===============================
-    # 延迟更新Actor网络
+    # 延迟更新 Actor 网络
     # ===============================
-    # 在TD3中，Actor网络的更新频率较低（例如，每2次Critic更新后更新一次Actor），以减少策略的方差。
+    # 在 TD3 中，Actor网络的更新频率较低（例如，每2次Critic更新后更新一次Actor），以减少策略的方差。
     if total_loss % targs.update_action_every == 0:
         actor_loss = -targs.critic_model.Q1(obs_batch, targs.actor_model(obs_batch)).mean()
 
         targs.actor_optimizer.zero_grad()
         actor_loss.backward()
         targs.actor_optimizer.step()
-
-
-    # ===============================
-    # 软更新目标网络
-    # ===============================
-    if total_loss % targs.update_target_every == 0:
-        soft_update(targs.target_critic_model, targs.critic_model, targs.tau)
-        soft_update(targs.target_actor_model, targs.actor_model, targs.tau)
-
-
-
-def soft_update(target, source, tau):
-    for target_param, param in zip(target.parameters(), source.parameters()):
-        target_param.data.copy_(tau*param.data + (1-tau)*target_param.data)
 
 
 

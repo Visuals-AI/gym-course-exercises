@@ -155,7 +155,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         if done:
             break
 
-        dqn(targs, total_loss)  # DQN 学习（核心算法，从【经验回放存储】中收集经验）
+        total_loss = dqn(targs, total_loss)  # DQN 学习（核心算法，从【经验回放存储】中收集经验）
     # while end
 
     # 保存智能体这个回合渲染的动作 UI
@@ -305,6 +305,7 @@ def dqn(targs: TrainArgs, total_loss) :
 
     # 累积损失更新
     total_loss += loss.item()
+    return total_loss
 
 
 def cat_batch_tensor(batch_data, data_type, up_dim=False) :
