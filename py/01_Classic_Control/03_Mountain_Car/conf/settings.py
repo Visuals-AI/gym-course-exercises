@@ -8,6 +8,7 @@
 COURSE_NAME = 'mountain_car_continuous'
 
 # 训练的模型名称
+MODEL_NAME = 'mountain_car_continuous'
 ACTOR_MODEL_NAME = 'actor'
 CRITIC_MODEL_NAME = 'critic'
 
