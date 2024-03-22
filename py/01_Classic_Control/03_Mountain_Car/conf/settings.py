@@ -8,8 +8,8 @@
 COURSE_NAME = 'mountain_car_continuous'
 
 # 训练的模型名称
-ACT_MODEL_NAME = 'actor'
-Q_MODEL_NAME = 'critic'
+ACTOR_MODEL_NAME = 'actor'
+CRITIC_MODEL_NAME = 'critic'
 
 # 交互的环境名称
 ENV_NAME = 'MountainCarContinuous-v0'

@@ -35,7 +35,7 @@ class TrainArgs :
         self.max_action = float(self.env.action_space.high[0])  # 最大动作值
         self.device = scan_device(args.cpu)                     # 检查使用 GPU 还是 CPU
 
-        # TD3 的 Actor-Critic 网络模型
+        # TD3 的 Actor-Critic 网络模型（主模型）
         self.actor_model, self.critic_model = self.create_model(
             self.obs_size, self.act_size, self.max_action, self.device
         )
@@ -47,11 +47,12 @@ class TrainArgs :
 
         else :
             self.tagger = Tagger(ENV_NAME, False)
-            self.act_mgr = CheckpointManager(COURSE_NAME, ACT_MODEL_NAME) # checkpoint 管理器
-            self.q_mgr = CheckpointManager(COURSE_NAME, Q_MODEL_NAME)
+            self.actor_mgr = CheckpointManager(COURSE_NAME, ACTOR_MODEL_NAME) # checkpoint 管理器
+            self.critic_mgr = CheckpointManager(COURSE_NAME, CRITIC_MODEL_NAME)
 
-            self.actor_optimizer = optim.Adam(self.actor_model.parameters(), lr=args.lr)    # 用于训练神经网络的优化器。这里使用的是 Adam 优化器，一个流行的梯度下降变种，lr=0.001设置了学习率为0.001。
-            self.critic_optimizer = optim.Adam(self.critic_model.parameters(), lr=args.lr)
+
+            # 用于训练神经网络的优化器。这里使用的是 Adam 优化器，一个流行的梯度下降变种，lr=0.001设置了学习率为0.001。
+            self.actor_optimizer, self.critic_optimizer = self.create_optimizers([self.actor_model, self.critic_model], args.lr)
             self.criterion = nn.MSELoss()               # 用于训练过程中的损失函数。这里使用的是均方误差损失（MSE Loss），它是评估神经网络预测值与实际值差异的常用方法。
 
             self.memory = deque(maxlen=2000)            # 经验回放存储。本质是一个双端队列（deque），当存储超过2000个元素时，最旧的元素将被移除。经验回放是DQN中的一项关键技术，有助于打破经验间的相关性并提高学习的效率和稳定性。
@@ -71,10 +72,9 @@ class TrainArgs :
             self.info = {}                              # 其他额外参数
             self.tensor_logs = args.tensor_logs         # TensorBoard 日志目录
 
-            # 在 DQN 中，通常会使用两个模型：
+            # TD3 与 DQN 类似，也是使用两个模型：
             #   一个是用于进行实际决策的主模型（self.model）： 用于生成当前的 Q 值
             #   另一个是目标模型（target_model）：用于计算期望的 Q 值，以提供更稳定的学习目标
-            # 故 TD3 也类似
             self.target_actor_model, self.target_critic_model = self.create_model(
                 self.obs_size, self.act_size, self.max_action, self.device
             )
@@ -171,6 +171,20 @@ class TrainArgs :
         return (actor_model, critic_model)
     
 
+    def create_optimizers(self, models, lr) :
+        '''
+        构建优化器
+        :params: models 模型列表
+        :params: lr 学习率
+        :return: 优化器列表
+        '''
+        optimizers = []
+        for model in models :
+            optimizer = optim.Adam(model.parameters(), lr=lr)
+            optimizers.append(optimizer)
+        return optimizers
+    
+
     def update_target_model(self, epoch):
         '''
         使用 主模型 更新 目标模型 网络的参数。
@@ -202,8 +216,8 @@ class TrainArgs :
         if self.zero :
             return  # 强制从零开始训练，不加载检查点
         
-        model_names = [ ACT_MODEL_NAME, Q_MODEL_NAME ]
-        mgrs = [ self.act_mgr, self.q_mgr ]
+        model_names = [ ACTOR_MODEL_NAME, CRITIC_MODEL_NAME ]
+        mgrs = [ self.actor_mgr, self.critic_mgr ]
         models = [ self.actor_model, self.critic_model ]
         optimizers = [ self.actor_optimizer, self.critic_optimizer ]
         
@@ -231,7 +245,7 @@ class TrainArgs :
         if force and (epsilon < 0) :
             epsilon = self.cur_epsilon
 
-        mgrs = [ self.act_mgr, self.q_mgr ]
+        mgrs = [ self.actor_mgr, self.critic_mgr ]
         models = [ self.actor_model, self.critic_model ]
         optimizers = [ self.actor_optimizer, self.critic_optimizer ]
         is_ok = True
