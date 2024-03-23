@@ -190,8 +190,7 @@ def select_next_action(targs: TrainArgs, obs) :
     # 在动作空间随机选择一个动作（受当前探索率影响）
     if not np.random.rand() <= targs.cur_epsilon:
         with torch.no_grad() :  # 暂时禁用梯度计算
-            # actor_model(obs) == actor_model.forward(obs) ， 这是 PyTorch 的语法糖
-            # .cpu().data.numpy()， 把张量移动到 CPU 上作为动作输出，确保兼容性。 如果一直都在一个设备，可替换为 .detach()
+            # 这是 PyTorch 的语法糖 actor_model(obs) == actor_model.forward(obs)
             action = targs.actor_model(obs).detach()    # array len 1
     else:
         action = targs.env.action_space.sample()        # array len 1
@@ -223,7 +222,6 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
     # log.debug(f"  其他额外信息: {info}")          # 通常用 hash 表附带自定义的额外信息（如诊断信息、调试信息），暂时不需要用到的额外信息。
     
     next_obs = to_tensor(next_raw_obs, targs, False)      # 把观测空间状态数组送入神经网络所在的设备
-    # log.debug(f"  next_obs: {next_obs}")
     done = terminated or truncated
     return (next_obs, reward, done)
 

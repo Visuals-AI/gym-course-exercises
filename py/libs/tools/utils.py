@@ -33,6 +33,10 @@ def get_model_group_paths(model_dir, model_epoch) :
     return model_paths
 
 
+def is_close_to_zero(num, threshold=1e-4):
+    return abs(num) < threshold
+
+
 def current_millis() :
     '''
     当前时间戳（毫秒级）

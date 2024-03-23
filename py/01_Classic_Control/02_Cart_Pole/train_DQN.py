@@ -219,7 +219,7 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
     done = terminated or truncated
 
     # 在 CartPole 问题中，目标是让智能体坚持更长的步数
-    # 而 DQN 贪婪策略是尽早完成挑战，在CartPole 问题中每一步默认的固定奖励是 +1，实际训练下来这种奖励策略并不足以引导智能体坚持更长的步数，它依然倾向更早地结束挑战
+    # 而 DQN 贪婪策略是尽早完成挑战，在 CartPole 问题中每一步默认的固定奖励是 +1，实际训练下来这种奖励策略并不足以引导智能体坚持更长的步数，它依然倾向更早地结束挑战
     # 因此这里做一个 reward shaping（奖励整形），把线性奖励调整为非线性，引导智能体坚持到更长的回合数
 
     # 1. 智能体每一步得到的奖励逐步递减，目的是使得智能体不要专注短期收益

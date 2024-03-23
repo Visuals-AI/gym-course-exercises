@@ -119,8 +119,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     total_loss = 0                  # 累计损失率。反映了预测 Q 值和目标 Q 值之间的差异
     step_counter = 0                # 训练步数计数器
     bgn_time = current_seconds()    # 训练时长计数器
-    min_x = 99                      # 本回合训练中、小车走得离目标地点最近的距离
-    max_x = -99                     # 本回合训练中、小车走得离目标地点最远的距离
+    continue_cnt = 0                # 本回合训练中、智能体连续维持在垂直状态步数
 
     # 开始训练智能体
     while True:
@@ -131,7 +130,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         next_obs, reward, done = exec_next_action(targs, action, epoch, step_counter)
 
         # 调整奖励
-        reward, min_x, max_x = adjust(next_obs, reward, min_x, max_x)
+        reward, continue_cnt = adjust(next_obs, reward, continue_cnt)
 
         # 向【经验回放存储】添加当前 step 执行前后状态、奖励情况等
         targs.memory.append((obs, action, reward, next_obs, done))
@@ -148,6 +147,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
             f"total_reward: {total_reward}", 
             f"total_loss: {total_loss}",
             f"epsilon: {targs.cur_epsilon}", 
+            f"continue_cnt: {continue_cnt}",    # 智能体连续维持在垂直状态步数
             f"coordinates-x: {obs[0][0]}",      # 自由端的 x 坐标
             f"coordinates-y: {obs[0][1]}",      # 自由端的 y 坐标
             f"angular_velocity: {obs[0][2]}",   # 角速度
@@ -191,12 +191,10 @@ def select_next_action(targs: TrainArgs, obs) :
     # 在动作空间随机选择一个动作（受当前探索率影响）
     if not np.random.rand() <= targs.cur_epsilon:
         with torch.no_grad() :  # 暂时禁用梯度计算
-            # actor_model(obs) == actor_model.forward(obs) ， 这是 PyTorch 的语法糖
-            # .cpu().data.numpy()， 把张量移动到 CPU 上作为动作输出，确保兼容性。 如果一直都在一个设备，可替换为 .detach()
+            # 这是 PyTorch 的语法糖 actor_model(obs) == actor_model.forward(obs)
             action = targs.actor_model(obs).detach()    # array len 1
     else:
         action = targs.env.action_space.sample()        # array len 1
-
 
     # 在 TD3 中，为了探索，通常给动作添加一定的噪声
     noise = np.random.normal(0, targs.noise, size=targs.env.action_space.shape[0])  # array len 1
@@ -224,39 +222,53 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
     # log.debug(f"  其他额外信息: {info}")          # 通常用 hash 表附带自定义的额外信息（如诊断信息、调试信息），暂时不需要用到的额外信息。
     
     next_obs = to_tensor(next_raw_obs, targs, False)      # 把观测空间状态数组送入神经网络所在的设备
-    # log.debug(f"  next_obs: {next_obs}")
     done = terminated or truncated
     return (next_obs, reward, done)
 
 
 
-def adjust(next_obs, reward, min_x, max_x):
+def adjust(next_obs, reward, continue_cnt):
     '''
-    奖励重塑，包括对停滞的惩罚
-    :params: next_obs 执行当前 action 后、小车处于的状态
-    :params: reward 执行当前 action 后、小车获得的奖励
-    :params: min_x 本回合训练中、小车走得离目标地点最远的距离（为了借力）
-    :params: max_x 本回合训练中、小车走得离目标地点最近的距离
+    奖励重塑。
+
+    在 Pendulum 问题中，目标是让智能体在到达垂直位置后、能坚持更长的步数
+    而 TD3 贪婪策略是尽早完成挑战，与 Pendulum 的目标恰恰相反
+    在 Pendulum 每一步的奖励是根据 theta 的夹角去计算的（非线性）：
+      夹角最大，奖励越小，最小奖励为 -16.2736044
+      夹角最小，奖励最大，最大奖励为 0
+    在达成目标之后的每一步，奖励均为 0，并不足以使得智能体继续坚持，因此这里调整奖励
+
+    达成目标后：
+      1. 如果连续坚持，则每一步都持续递增奖励
+      2. 如果坚持中断，则连续奖励重置计算
+    本体重点在 “维持”，因此探索率不易过高
+
+    :params: next_obs 执行当前 action 后、智能体处于的状态
+    :params: reward 执行当前 action 后、智能体当前步获得的奖励
+    :params: continue_cnt 智能体连续维持在垂直状态步数
     :return: 重塑后的 (reward, min_x, max_x)
     '''
-    x = next_obs[0][0]     # 小车位置
-    speed = next_obs[0][1] # 小车速度，向前为正、向后为负
+    x = next_obs[0][0]                  # 自由端的 x 坐标
+    y = next_obs[0][1]                  # 自由端的 y 坐标
+    angular_velocity = next_obs[0][2]   # 自由端的角速度
 
-    # 鼓励小车向目标移动并更新最远/最近位置
-    if x > max_x:
-        reward += (x - max_x) * 10  # 刷新距离目标最近的距离，给予最大奖励
-        max_x = x
-    elif x < min_x:
-        reward += (min_x - x) * 5  # 刷新距离目标最远的距离，也给予一定的奖励（因为可以借力）
-        min_x = x
+    # 如果这一步的奖励为 0，说明达到垂直状态
+    if reward == 0 :
+        continue_cnt += 1   # 连续维持的步数 +1
+        
+        # 检查当前角速度是否接近 0，若是则说明可以维持在这个状态更久，给予更大奖励
+        if is_close_to_zero(angular_velocity) :
+            reward += (continue_cnt * 10)
 
-    # 根据速度给予奖励或惩罚
-    if abs(speed) > 0.01:  # 如果小车有明显的移动
-        reward += abs(speed) * 5  # 根据速度的绝对值给予奖励
-    else:
-        reward -= 1  # 对于几乎没有移动的情况给予小的惩罚
+        # 否则仅仅给予少量奖励，因为极可能无法维持在这个状态
+        else :
+            reward += continue_cnt
 
-    return (reward, min_x, max_x)
+    # 不在垂直状态，重置连续维持的步数
+    else :
+        continue_cnt = 0
+
+    return (reward, continue_cnt)
 
 
 
