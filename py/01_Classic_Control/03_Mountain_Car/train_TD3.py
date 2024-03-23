@@ -105,7 +105,7 @@ def train_td3(targs: TrainArgs) :
 # FIXME 并发训练
 def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     '''
-    使用深度 Q 网络（DQN）算法进行训练。
+    使用 TD3 算法进行训练。
     :params: writer 训练过程记录器，可用 TensorBoard 查看
     :params: targs 用于训练的环境和模型关键参数
     :return: None
@@ -146,10 +146,8 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
             f"step: {step_counter}", 
             f"action: {action}", 
             f"total_reward: {total_reward}", 
+            f"total_loss: {total_loss}",
             f"epsilon: {targs.cur_epsilon}", 
-            f"epsilon_decay: {targs.epsilon_decay}",
-            f"noise: {targs.noise}",
-            f"gamma: {targs.gamma}",
             f"position: {obs[0][0]}",         # 小车位置
             f"velocity: {obs[0][1]}",         # 小车速度
         ]

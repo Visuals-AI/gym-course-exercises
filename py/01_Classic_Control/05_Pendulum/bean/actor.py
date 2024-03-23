@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # @Author : EXP
-# @Time   : 2023/11/25 23:56
+# @Time   : 2024/03/23 13:52
 # -----------------------------------------------
 
 import torch
@@ -15,7 +15,7 @@ class Actor(nn.Module):
     def __init__(self, state_size, action_size, max_action):
         super(Actor, self).__init__()
         self.layer1 = nn.Linear(state_size, 400)     # 区别一： 连接层的神经元数量不一样
-        self.layer2 = nn.Linear(400, 300)           # 神经元数量越多、学习复杂问题的能力越好，但是需要更多资源
+        self.layer2 = nn.Linear(400, 300)            # 神经元数量越多、学习复杂问题的能力越好，但是需要更多资源
         self.layer3 = nn.Linear(300, action_size)    # 前面 DQN 每层是 24 个神经元、这里是 400 个，根据先验经验得到的，可调整 
         self.max_action = max_action
 

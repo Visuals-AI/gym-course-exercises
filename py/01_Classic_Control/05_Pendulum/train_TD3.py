@@ -3,10 +3,10 @@
 # @Author : EXP
 # @Time   : 2024/01/11 13:01
 # -----------------------------------------------
-# 经典控制： Pendulum （山地车-连续动作）
-#   Pendulum 是一种确定性 MDP（马尔可夫决策过程）问题。
-#   目标是控制一个无法直接攀登陡峭山坡的小车，使其到达山顶。
-#   小车的动力不足以直接爬上山坡，所以必须利用山坡的反向坡度来获得足够的动量。
+# 经典控制： Pendulum （倒立摆-连续动作）
+#   Pendulum 是一个倒立摆摆动问题。
+#   该系统由一个摆锤组成，摆锤的一端连接到固定点，另一端自由。
+#   摆锤从一个随机位置开始，目标是在自由端施加扭矩，将其摆动到直立位置，其重心位于固定点的正上方，然后坚持越久越好。
 # 
 # 相关文档：
 #   https://gymnasium.farama.org/environments/classic_control/pendulum/
@@ -36,8 +36,8 @@ from color_log.clog import log
 def arguments() :
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        prog='Gym - MountainCarContinuous 训练脚本',
-        description='在默认环境下、使用深度 Q 网络（DQN）训练智能体操作 MountainCarContinuous', 
+        prog='Gym - Pendulum 训练脚本',
+        description='在默认环境下、使用深度 Q 网络（DQN）训练智能体操作 Pendulum', 
         epilog='\r\n'.join([
             '运行环境: python3', 
             '运行示例: python py/01_Classic_Control/05_Pendulum/train_td3.py'
@@ -67,7 +67,7 @@ def main(args) :
     targs = TrainArgs(args)
 
     # 实现 “训练算法” 以进行训练
-    # 针对 MountainCarContinuous 问题， TD3 算法会更适合：
+    # 针对 Pendulum 问题， TD3 算法会更适合：
     #   DDPG（Deep Deterministic Policy Gradient）：结合了策略梯度和 Q 学习的算法，特别适用于连续动作空间。
     #   TD3（Twin Delayed DDPG）：是 DDPG 的改进版本，通过使用两个 Q 网络和延迟策略更新来减少过高估计和提高稳定性。
     train_td3(targs)
@@ -105,13 +105,13 @@ def train_td3(targs: TrainArgs) :
 # FIXME 并发训练
 def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     '''
-    使用深度 Q 网络（DQN）算法进行训练。
+    使用 TD3 算法进行训练。
     :params: writer 训练过程记录器，可用 TensorBoard 查看
     :params: targs 用于训练的环境和模型关键参数
     :return: None
     '''
     targs.reset_render_cache()
-    raw_obs = targs.reset_env()         # 重置环境（在 MountainCarContinuous 环境中，这个初始状态就是观测空间，它包含了关于 MountainCarContinuous 状态的数组）
+    raw_obs = targs.reset_env()         # 重置环境（在 Pendulum 环境中，这个初始状态就是观测空间，它包含了关于 Pendulum 状态的数组）
                                         # raw_obs 的第 0 个元素才是状态数组 (array([ ... ], dtype=float32), {})
     obs = to_tensor(raw_obs[0], targs, False)  # 把观测空间状态数组送入神经网络所在的设备
     
@@ -146,12 +146,11 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
             f"step: {step_counter}", 
             f"action: {action}", 
             f"total_reward: {total_reward}", 
+            f"total_loss: {total_loss}",
             f"epsilon: {targs.cur_epsilon}", 
-            f"epsilon_decay: {targs.epsilon_decay}",
-            f"noise: {targs.noise}",
-            f"gamma: {targs.gamma}",
-            f"position: {obs[0][0]}",         # 小车位置
-            f"velocity: {obs[0][1]}",         # 小车速度
+            f"coordinates-x: {obs[0][0]}",      # 自由端的 x 坐标
+            f"coordinates-y: {obs[0][1]}",      # 自由端的 y 坐标
+            f"angular_velocity: {obs[0][2]}",   # 角速度
         ]
         targs.render(labels)
         if done:
