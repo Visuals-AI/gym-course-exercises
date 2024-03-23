@@ -56,7 +56,7 @@ class TrainArgs :
 
             self.memory = deque(maxlen=2000)            # 经验回放存储。本质是一个双端队列（deque），当存储超过2000个元素时，最旧的元素将被移除。经验回放是DQN中的一项关键技术，有助于打破经验间的相关性并提高学习的效率和稳定性。
             self.batch_size = args.batch_size           # 从【经验回放存储】中一次抽取并用于训练网络的【经验样本数】
-            self.update_action_every = 2                # 定义更新 Action 模型的频率
+            self.update_action_every = 2                # 定义更新 Action 模型的频率（一般 2-5，小值加速学习、大值则更稳定）
 
             self.epoches = args.epoches                 # 总训练回合数
             self.last_epoch = 0                         # 最后一次记录的训练回合数

@@ -160,7 +160,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         if done:
             break
 
-        total_loss = td3(targs, total_loss)  # TD3 学习（核心算法，从【经验回放存储】中收集经验）
+        total_loss = td3(targs, total_loss, step_counter)  # TD3 学习（核心算法，从【经验回放存储】中收集经验）
     # while end
 
     # 保存智能体这个回合渲染的动作 UI
@@ -250,7 +250,7 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
 
 
 
-def td3(targs: TrainArgs, total_loss) :
+def td3(targs: TrainArgs, total_loss, step_counter) :
     '''
     进行 DQN 学习（基于 Q 值的强化学习方法）：
         这个过程是 DQN 学习算法的核心，它利用从环境中收集的经验来不断调整和优化网络，使得预测的 Q 值尽可能接近实际的 Q 值。
@@ -258,13 +258,14 @@ def td3(targs: TrainArgs, total_loss) :
     :params: targs 用于训练的环境和模型关键参数
     :params: action 下一步动作
     :params: total_loss 累积损失
+    :params: step_counter 步数计数器
     :return: 执行动作后观测空间返回的状态
     '''
 
     # 确保只有当【经验回放存储】中的样本数量超过批处理大小时，才进行学习过程
     # 这是为了确保有足够的样本来进行有效的批量学习
     if len(targs.memory) <= targs.batch_size :
-        return
+        return total_loss
     
     # ===============================
     # 准备批量数据
@@ -307,51 +308,40 @@ def td3(targs: TrainArgs, total_loss) :
         target_Q_values = reward_batch + (1 - done_batch) * targs.gamma * target_Q
 
 
-    # 获得当前状态下的 Q 值（对当前状态的观测进行前向传播的结果，用于后续计算损失）
+    # 获得当前状态下的 Q 值（对当前状态的观测进行前向传播的结果，用于计算损失）
     # obs_batch 必须形状 tensor 32x2
     # act_batch 必须形状 tensor 32x1
     current_Q1, current_Q2 = targs.critic_model(obs_batch, act_batch)
     critic_loss = F.mse_loss(current_Q1, target_Q_values) + F.mse_loss(current_Q2, target_Q_values)
-
-    targs.critic_optimizer.zero_grad()
-    critic_loss.backward()
-    targs.critic_optimizer.step()
+    total_loss += critic_loss.item()    # 更新累积损失
+    optimize_params(targs.critic_model, targs.critic_optimizer, critic_loss)    # 参数优化
 
 
     # ===============================
     # 延迟更新 Actor 网络
     # ===============================
     # 在 TD3 中，Actor网络的更新频率较低（例如，每2次Critic更新后更新一次Actor），以减少策略的方差。
-    if total_loss % targs.update_action_every == 0:
+    if step_counter % targs.update_action_every == 0 :
         actor_loss = -targs.critic_model.Q1(obs_batch, targs.actor_model(obs_batch)).mean()
+        total_loss += actor_loss.item()     # 更新累积损失
+        optimize_params(targs.actor_model, targs.actor_optimizer, actor_loss)   # 参数优化
 
-        targs.actor_optimizer.zero_grad()
-        actor_loss.backward()
-        targs.actor_optimizer.step()
+    return total_loss
 
 
-
-    # 获得当前状态下的 Q 值（对当前状态的观测进行前向传播的结果，用于后续计算损失）
-    # current_Q_values = get_current_Q_values(targs.model, obs_batch, act_batch)
-
-    # # 计算下一个状态的最大预测 Q 值
-    # expected_q_values = calculate_expected_Q_values(
-    #     targs.target_model, targs.gamma, 
-    #     next_obs_batch, reward_batch, done_batch
-    # )
-
-    # # 计算 Huber 损失（亦称平滑 L1 损失，用于表示当前 Q 值和预期 Q 值之间的差异）
-    # # Huber 损失是均方误差和绝对误差的结合，对异常值不那么敏感
-    # loss = F.smooth_l1_loss(
-    #     current_Q_values,               # 是一个二维张量，其形状是 [batch_size, 1]，因为它是通过 gather 操作从网络输出中选取的特定动作的 Q 值
-    #     expected_q_values.unsqueeze(1)  # 在张量中增加一个维度，其中第二个维度（列）的大小为 1，即使其形状从 [batch_size] 转换成 [batch_size, 1]
-    # )
-
-    # # 优化模型
-    # optimize_params(targs.model, targs.optimizer, loss)
-
-    # # 累积损失更新
-    # total_loss += loss.item()
+def optimize_params(model, optimizer, loss, max_grad_norm=1.0) :
+    '''
+    优化模型
+    :params: model 模型
+    :params: optimizer 优化器
+    :params: loss 损失
+    :params max_grad_norm: 梯度的最大范数
+    :return: 
+    '''
+    optimizer.zero_grad() # 清除之前的梯度。PyTorch 会默认累积梯度，如果不清除梯度，新计算的梯度会被加到已存在的梯度上，在 DQN 中这会使得训练过程变得不稳定，甚至可能导致模型完全无法学习。
+    loss.backward()             # 反向传播，计算梯度
+    torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)  # 梯度裁剪
+    optimizer.step()      # 更新参数（梯度下降，指使用计算出的梯度来更新模型参数的过程）
 
 
 

@@ -252,7 +252,7 @@ def dqn(targs: TrainArgs, total_loss) :
     # 确保只有当【经验回放存储】中的样本数量超过批处理大小时，才进行学习过程
     # 这是为了确保有足够的样本来进行有效的批量学习
     if len(targs.memory) <= targs.batch_size :
-        return
+        return total_loss
     
     # 从【经验回放存储】中随机抽取 batch_size 个样本数
     # 这种随机抽样是为了减少样本间的相关性，增强学习的稳定性和效率
