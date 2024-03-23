@@ -251,8 +251,9 @@ def adjust(next_obs, reward, continue_cnt):
     x = next_obs[0][0]                  # 自由端的 x 坐标
     y = next_obs[0][1]                  # 自由端的 y 坐标
     angular_velocity = next_obs[0][2]   # 自由端的角速度
+    print(f"reward: {reward}, x: {x}, y: {y}, v: {angular_velocity}")
 
-    # 如果这一步的奖励为 0，说明达到垂直状态
+    # 如果这一步的奖励为 0，说明达到垂直状态  （x=1, y=0）
     if reward == 0 :
         continue_cnt += 1   # 连续维持的步数 +1
         
