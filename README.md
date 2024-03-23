@@ -36,7 +36,16 @@
 ## 0x20 课程练习
 
 
-- Classic Control:
-    - Acrobot: [README.md](./py/01_Classic_Control/01_Acrobot/)
-    - Cart Pole: [README.md](./py/01_Classic_Control/02_Cart_Pole/)
+### 0x21 Classic Control
 
+| 课程 | 代码 | 笔记 |
+|:---:|:---:|:---:|
+| Acrobot | [code](./py/01_Classic_Control/01_Acrobot/) | [Link](https://exp-blog.com/ai/gym-bi-ji-02-acrobot/) |
+| Cart Pole | [code](./py/01_Classic_Control/02_Cart_Pole/) | [Link](https://exp-blog.com/ai/gym-bi-ji-03-cartpole/) |
+| Mountain Car Continuous | [code](./py/01_Classic_Control/03_Mountain_Car/) | [Link](#) |
+| Mountain Car | [code](./py/01_Classic_Control/04_Mountain_Car/) | [Link](https://exp-blog.com/ai/gym-bi-ji-04-mountaincar/) |
+
+
+### 0x22 TODO
+
+TODO
