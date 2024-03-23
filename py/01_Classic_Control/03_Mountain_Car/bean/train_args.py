@@ -6,6 +6,7 @@
 
 import os
 import gymnasium as gym
+import torch
 import torch.nn as nn
 import torch.optim as optim
 from bean.actor import Actor
@@ -194,6 +195,23 @@ class TrainArgs :
         '''
         for model in models :
             model.eval()
+
+
+    def load_models(self, model_paths=[]) :
+        '''
+        加载已训练好的模型
+        :params: model_paths 模型路径列表
+        :return: None
+        '''
+        for model_path in model_paths :
+            if ACTOR_MODEL_NAME in model_path :
+                self.actor_model.load_state_dict(         
+                    torch.load(model_path)
+                )
+            elif CRITIC_MODEL_NAME in model_path :
+                self.critic_model.load_state_dict(         
+                    torch.load(model_path)
+                )
     
 
     def update_target_model(self, epoch):

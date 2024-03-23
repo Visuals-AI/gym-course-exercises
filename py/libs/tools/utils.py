@@ -6,8 +6,10 @@
 
 import os
 import time
+import glob
 import torch
 import numpy as np
+from conf.global_settings import MODEL_SUFFIX
 
 
 def create_dirs(path):
@@ -19,6 +21,16 @@ def create_dirs(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
+
+def get_model_group_paths(model_dir, model_epoch) :
+    '''
+    根据回合数从模型目录中选择同一组模型路径
+    :params: model_epoch 训练模型的回合数
+    :return: 同一组模型路径
+    '''
+    path_pattern = os.path.join(model_dir, f"*{model_epoch}{MODEL_SUFFIX}")
+    model_paths = glob.glob(path_pattern)
+    return model_paths
 
 
 def current_millis() :

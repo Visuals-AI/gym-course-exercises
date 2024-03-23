@@ -20,7 +20,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../../libs/')
 
 import re
 import argparse
-import glob
 import torch
 from bean.train_args import TrainArgs
 from tools.utils import *
@@ -41,64 +40,62 @@ def arguments() :
     parser.add_argument('-u', '--human', dest='human', action='store_true', default=False, help='渲染模式: 人类模式，帧率较低且无法更改窗体显示内容')
     parser.add_argument('-a', '--rgb_array', dest='rgb_array', action='store_true', default=False, help='渲染模式: RGB 数组，需要用 OpenCV 等库辅助渲染，可以在每一帧添加定制内容，帧率较高')
     parser.add_argument('-s', '--save_gif', dest='save_gif', action='store_true', default=False, help='保存每个回合渲染的 UI 到 GIF（仅 rgb_array 模式有效）')
-    parser.add_argument('-m', '--model', dest='model', type=str, default='', help='验证单个模型的路径；如果为空，则验证所有模型')
+    parser.add_argument('-m', '--model_epoch', dest='model_epoch', type=int, default=0, help='根据训练回合数选择验证单个模型')
     parser.add_argument('-c', '--cpu', dest='cpu', action='store_true', default=False, help='强制使用 CPU: 默认情况下，自动优先使用 GPU 训练（除非没有 GPU）')
     parser.add_argument('-e', '--epoches', dest='epoches', type=int, default=100, help='验证次数')
     return parser.parse_args()
 
 
 def main(args) :
-    if args.model :
-        test_model(args.model, args)
+    model_dir = os.path.dirname(get_model_path(COURSE_NAME, MODEL_NAME))
+    if args.model_epoch == 0 :
+        test_models(args, model_dir)
 
     else :
-        test_models(args)
+        test_model(args, model_dir, args.model_epoch)
+        
 
 
-def test_models(args) :
-    model_dir = os.path.dirname(get_model_path(COURSE_NAME, MODEL_NAME))
-    path_pattern = os.path.join(model_dir, f"*{MODEL_SUFFIX}")
-    model_paths = glob.glob(path_pattern)
+def test_models(args, model_dir) :
 
     # 验证每个模型的成功率
     percentages = {}
-    for model_path in model_paths:
-        percentage = test_model(model_path, args)
-        percentages[model_path] = percentage
+    model_epoches = get_model_epoches(model_dir)
+    for model_epoch in model_epoches:
+        percentage = test_model(args, model_dir, model_epoch)
+        percentages[model_epoch] = percentage
 
     # 找出成功率最好的模型（不是训练次数越多就多好的，有可能存在过拟合问题）
     log.info("各个模型的验证如下:")
-    optimal_model_path = ''
+    optimal_model_epoch = 0
     max_percentage = 0
-    sorted_model_paths = sorted(percentages, key=extract_number)
-    for model_path in sorted_model_paths :
-        percentage = percentages.get(model_path) or 0
-        log.info(f"  模型 [{os.path.basename(model_path)}] 挑战成功率为: [{percentage:.2f}%]")
+    sorted_model_epoches = sorted(percentages, key=extract_number)
+    for model_epoch in sorted_model_epoches :
+        percentage = percentages.get(model_epoch) or 0
+        log.info(f"  模型 [{model_epoch}] 挑战成功率为: [{percentage:.2f}%]")
         if max_percentage < percentage :
             max_percentage = percentage
-            optimal_model_path = model_path
-    log.warn(f"最优模型为: [{optimal_model_path}]")
+            optimal_model_epoch = model_epoch
+    log.warn(f"最优模型为: [{optimal_model_epoch}]")
     log.warn(f"挑战成功率为: [{max_percentage:.2f}%]")
 
     
 
-def test_model(model_path, args) :
+def test_model(args, model_dir, model_epoch) :
     '''
     加载训练好的模型，重复验证，计算通过率。
-    :params: model_path 待验证的模型路径
     :params: args 从命令行传入的训练控制参数
+    :params: model_dir 已训练好的模型目录
+    :params: model_epoch 模型的训练回合数
     :return: None
     '''
-    # 设置为评估模式
+    # 设置为评估模式并加载已训练的模型
     targs = TrainArgs(args, eval=True)
-    
-    # 加载模型参数  
-    targs.model.load_state_dict(         
-        torch.load(model_path)
-    )
+    model_paths = get_model_group_paths(model_dir, model_epoch)    # 通过回合数获取对应一组模型的路径
+    targs.load_models(model_paths)
     
     log.info("++++++++++++++++++++++++++++++++++++++++")
-    log.info(f"开始验证模型: {model_path}")
+    log.info(f"开始验证模型: {model_epoch}")
     cnt_ok = 0
     min_step = MAX_STEP
     max_step = 0
@@ -115,7 +112,7 @@ def test_model(model_path, args) :
 
     avg_step = int(avg_step / args.epoches)
     percentage = (cnt_ok / args.epoches) * 100
-    log.warn(f"已完成模型 [{os.path.basename(model_path)}] 的验证，挑战成功率为: {percentage:.2f}%")
+    log.warn(f"已完成模型 [{model_epoch}] 的验证，挑战成功率为: {percentage:.2f}%")
     log.warn(f"本次验证中，智能体完成挑战的最小步数为 [{min_step}], 最大步数为 [{max_step}], 平均步数为 [{avg_step}]")
     log.info("----------------------------------------")
     targs.close_env()
@@ -138,7 +135,7 @@ def test(targs : TrainArgs, epoch) :
     for _ in range(MAX_STEP) :
 
         # 选择下一步动作
-        action = select_next_action(targs.model, obs)
+        action = select_next_action(targs.actor_model, obs)
         
         # 执行动作并获取下一个状态
         next_obs, _, done, _, _ = targs.env.step(action)
@@ -169,9 +166,14 @@ def test(targs : TrainArgs, epoch) :
     return cnt_step
 
 
-def select_next_action(model, obs) :
+def select_next_action(act_model, obs) :
     '''
-    使用模型推理下一步的动作
+    使用模型推理下一步的动作。
+
+    TD3 是一个基于 Actor-Critic 框架的算法，
+        其中 Actor 负责策略（即选择动作），Critic负责评价这些动作。
+    在评估模式下，只需要用 Actor 模型来选择动作，而不需要添加噪声。
+
     :params: model 被测模型
     :params: obs 当前观察空间
     :return: 下一步动作
@@ -179,18 +181,23 @@ def select_next_action(model, obs) :
     with torch.no_grad() :  # no_grad 告诉 PyTorch 在这个块中不要计算梯度。
                             # 在推理过程中，是使用模型来预测输出，而不是通过反向传播来更新模型的权重。
         
-        # 传递输入数据到模型
-        model_output = model(obs)
+        # 直接使用 Actor 模型预测动作
+        action = act_model(obs).detach()
+        
+    return to_nparray(action)
 
-        # 在模型的输出中找到具有最大 Q 值的动作的索引
-        action_index = model_output.max(1)[1]
 
-        # 调整张量形状为 (1, 1)
-        action_index_reshaped = action_index.view(1, 1)
-
-        # 获取单个动作值
-        action = action_index_reshaped.item()
-    return action
+def get_model_epoches(model_dir) :
+    # 获取已训练好的所有回合数的模型
+    model_epoches = []
+    filenames = os.listdir(model_dir)
+    for filename in filenames:
+        match = re.search(r"epoch_(\d+).pth", filename)
+        if match:
+            epoch = int(match.group(1))
+            if epoch not in model_epoches:
+                model_epoches.append(epoch)
+    return model_epoches
 
 
 def extract_number(filepath) :
