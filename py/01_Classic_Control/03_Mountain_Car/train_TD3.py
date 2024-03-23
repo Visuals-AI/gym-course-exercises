@@ -119,6 +119,8 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     total_loss = 0                  # 累计损失率。反映了预测 Q 值和目标 Q 值之间的差异
     step_counter = 0                # 训练步数计数器
     bgn_time = current_seconds()    # 训练时长计数器
+    min_x = 99                      # 本回合训练中、小车走得离目标地点最近的距离
+    max_x = -99                     # 本回合训练中、小车走得离目标地点最远的距离
 
     # 开始训练智能体
     while True:
@@ -128,16 +130,11 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         # 执行下一步动作
         next_obs, reward, done = exec_next_action(targs, action, epoch, step_counter)
 
+        # 调整奖励
+        reward, min_x, max_x = adjust(next_obs, reward, min_x, max_x)
+
         # 向【经验回放存储】添加当前 step 执行前后状态、奖励情况等
-        targs.memory.append(
-            (
-                obs, 
-                action,     # array len 1
-                reward, 
-                next_obs, 
-                done
-            )
-        )
+        targs.memory.append((obs, action, reward, next_obs, done))
 
         obs = next_obs          # 更新当前状态
         total_reward += reward  # 累计奖励（每一步的奖励是 env 决定的，由于 env 使用默认环境，所以这里无法调整每一步的奖励）
@@ -209,21 +206,6 @@ def select_next_action(targs: TrainArgs, obs) :
 
 
 
-def add_noise(targs: TrainArgs, action, noise) :
-    '''
-    为 action 添加噪音：TD3 通过在选取的动作上添加噪声来平滑目标策略
-    :params: targs 用于训练的环境和模型关键参数
-    :params: action 动作张量        array or tensor
-    :params: noise 噪音张量         array or tensor
-    :return: 添加噪音的动作张量      tensor （维度和形状 与 action和noise 一致）
-    '''
-    min_action = torch.tensor(targs.env.action_space.low, device=targs.device, dtype=torch.float)
-    max_action = torch.tensor(targs.env.action_space.high, device=targs.device, dtype=torch.float)
-    action = (action + noise).clip(min_action, max_action) # 确保 action + noise 依然在动作空间的取值范围内
-    return action
-
-
-
 def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
     '''
     执行下一步动作
@@ -247,6 +229,35 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
     done = terminated or truncated
     return (next_obs, reward, done)
 
+
+
+def adjust(next_obs, reward, min_x, max_x):
+    '''
+    奖励重塑，包括对停滞的惩罚
+    :params: next_obs 执行当前 action 后、小车处于的状态
+    :params: reward 执行当前 action 后、小车获得的奖励
+    :params: min_x 本回合训练中、小车走得离目标地点最远的距离（为了借力）
+    :params: max_x 本回合训练中、小车走得离目标地点最近的距离
+    :return: 重塑后的 (reward, min_x, max_x)
+    '''
+    x = next_obs[0][0]     # 小车位置
+    speed = next_obs[0][1] # 小车速度，向前为正、向后为负
+
+    # 鼓励小车向目标移动并更新最远/最近位置
+    if x > max_x:
+        reward += (x - max_x) * 10  # 刷新距离目标最近的距离，给予最大奖励
+        max_x = x
+    elif x < min_x:
+        reward += (min_x - x) * 5  # 刷新距离目标最远的距离，也给予一定的奖励（因为可以借力）
+        min_x = x
+
+    # 根据速度给予奖励或惩罚
+    if abs(speed) > 0.01:  # 如果小车有明显的移动
+        reward += abs(speed) * 5  # 根据速度的绝对值给予奖励
+    else:
+        reward -= 1  # 对于几乎没有移动的情况给予小的惩罚
+
+    return (reward, min_x, max_x)
 
 
 
@@ -327,6 +338,20 @@ def td3(targs: TrainArgs, total_loss, step_counter) :
         optimize_params(targs.actor_model, targs.actor_optimizer, actor_loss)   # 参数优化
 
     return total_loss
+
+
+def add_noise(targs: TrainArgs, action, noise) :
+    '''
+    为 action 添加噪音：TD3 通过在选取的动作上添加噪声来平滑目标策略
+    :params: targs 用于训练的环境和模型关键参数
+    :params: action 动作张量        array or tensor
+    :params: noise 噪音张量         array or tensor
+    :return: 添加噪音的动作张量      tensor （维度和形状 与 action和noise 一致）
+    '''
+    min_action = torch.tensor(targs.env.action_space.low, device=targs.device, dtype=torch.float)
+    max_action = torch.tensor(targs.env.action_space.high, device=targs.device, dtype=torch.float)
+    action = (action + noise).clip(min_action, max_action) # 确保 action + noise 依然在动作空间的取值范围内
+    return action
 
 
 def optimize_params(model, optimizer, loss, max_grad_norm=1.0) :
