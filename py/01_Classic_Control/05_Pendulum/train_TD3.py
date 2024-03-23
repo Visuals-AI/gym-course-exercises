@@ -119,7 +119,6 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     total_loss = 0                  # 累计损失率。反映了预测 Q 值和目标 Q 值之间的差异
     step_counter = 0                # 训练步数计数器
     bgn_time = current_seconds()    # 训练时长计数器
-    continue_cnt = 0                # 本回合训练中、智能体连续维持在垂直状态步数
 
     # 开始训练智能体
     while True:
@@ -130,7 +129,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         next_obs, reward, done = exec_next_action(targs, action, epoch, step_counter)
 
         # 调整奖励
-        reward, continue_cnt = adjust(next_obs, reward, continue_cnt)
+        reward = adjust(next_obs, reward)
 
         # 向【经验回放存储】添加当前 step 执行前后状态、奖励情况等
         targs.memory.append((obs, action, reward, next_obs, done))
@@ -147,7 +146,6 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
             f"total_reward: {total_reward}", 
             f"total_loss: {total_loss}",
             f"epsilon: {targs.cur_epsilon}", 
-            f"continue_cnt: {continue_cnt}",    # 智能体连续维持在垂直状态步数
             f"coordinates-x: {obs[0][0]}",      # 自由端的 x 坐标
             f"coordinates-y: {obs[0][1]}",      # 自由端的 y 坐标
             f"angular_velocity: {obs[0][2]}",   # 角速度
@@ -227,50 +225,62 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
 
 
 
-def adjust(next_obs, reward, continue_cnt):
+def adjust(next_obs, reward):
     '''
     奖励重塑。
 
-    在 Pendulum 问题中，目标是让智能体在到达垂直位置后、能坚持更长的步数
-    而 TD3 贪婪策略是尽早完成挑战，与 Pendulum 的目标恰恰相反
+    在 Pendulum 问题中，目标是让智能体在到达垂直位置后、能维持更长的步数。
+
     在 Pendulum 每一步的奖励是根据 theta 的夹角去计算的（非线性）：
       夹角最大，奖励越小，最小奖励为 -16.2736044
       夹角最小，奖励最大，最大奖励为 0
-    在达成目标之后的每一步，奖励均为 0，并不足以使得智能体继续坚持，因此这里调整奖励
 
-    达成目标后：
-      1. 如果连续坚持，则每一步都持续递增奖励
-      2. 如果坚持中断，则连续奖励重置计算
-    本体重点在 “维持”，因此探索率不易过高
+    理想状态下，
+        x=1 y=0
+        夹角 theta=0  
+        角速度 angular_velocity=0 （顺时针为+ 逆时针为-）
+    
+    根据 gym 的奖励公式： r = -(theta^2 + 0.1 * angular_velocity^2 + 0.001 * action^2)
+    所以 reward 由角度的平方、角速度的平方以及动作值决定。
+    当智能体越往上，角度越大，reward 越大，从而鼓励智能体往上摆；
+    角速度越大，reward 越大，从而鼓励智能体快速往上摆；
+    动作值越大，摆动的速度也就越大，从而加速智能体往上摆。
+    
+    系数的大小说明了: 角度 > 角速度 > 动作值。
+    因为摆过头，角度 theta 就下降得快，reward 就跌得快。
 
     :params: next_obs 执行当前 action 后、智能体处于的状态
     :params: reward 执行当前 action 后、智能体当前步获得的奖励
-    :params: continue_cnt 智能体连续维持在垂直状态步数
     :return: 重塑后的 (reward, min_x, max_x)
     '''
     x = next_obs[0][0]                  # 自由端的 x 坐标
     y = next_obs[0][1]                  # 自由端的 y 坐标
     angular_velocity = next_obs[0][2]   # 自由端的角速度
-    print(f"reward: {reward}, x: {x}, y: {y}, v: {angular_velocity}")
+    # print(f"reward: {reward}, x: {x}, y: {y}, v: {angular_velocity}")
 
-    # 如果这一步的奖励为 0，说明达到垂直状态  （x=1, y=0）
-    if reward == 0 :
-        continue_cnt += 1   # 连续维持的步数 +1
-        
-        # 检查当前角速度是否接近 0，若是则说明可以维持在这个状态更久，给予更大奖励
-        if is_close_to_zero(angular_velocity) :
-            reward += (continue_cnt * 10)
+    # 理想状态 x=1 y=0 theat=0  v=0 顺时针为+ 逆时针为- 
+    # 系数的大小说明了: 角度 > 角速度 > 动作值
 
-        # 否则仅仅给予少量奖励，因为极可能无法维持在这个状态
-        else :
-            reward += continue_cnt
+    thresholds = [ 0.01, 0.05, 0.1 ]    # 阈值等级
+    reward_xy = [ 100, 50, 10 ]         # xy 阈值等级奖励
+    reward_v = [ 1000, 500, 100 ]       # 角速度 阈值等级奖励
 
-    # 不在垂直状态，重置连续维持的步数
-    else :
-        continue_cnt = 0
+    for idx, threshold in enumerate(thresholds) :
+        if is_close_to_zero(x - 1, threshold) and is_close_to_zero(y, threshold) :
+            reward += reward_xy[idx]
+            print(f"xy reward: {reward}, x: {x}, y: {y}, v: {angular_velocity}")
+            reward += _adjust(reward, angular_velocity, thresholds, reward_v)
+            break
+    return reward
 
-    return (reward, continue_cnt)
 
+def _adjust(reward, angular_velocity, thresholds=[], reward_v=[]) :
+    for idx, threshold in enumerate(thresholds) :
+        if is_close_to_zero(angular_velocity, threshold) :
+            reward += reward_v[idx]
+            print(f"v reward: {reward}, v: {angular_velocity}")
+            break
+    return reward
 
 
 def td3(targs: TrainArgs, total_loss, step_counter) :

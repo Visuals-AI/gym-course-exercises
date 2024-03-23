@@ -22,6 +22,7 @@ import re
 import argparse
 import torch
 from bean.train_args import TrainArgs
+from bean.tested_rst import TestedResult
 from tools.utils import *
 from conf.settings import *
 from color_log.clog import log
@@ -72,7 +73,7 @@ def test_models(args, model_dir) :
         rst = tested_rst.get(model_epoch)
         log.info(rst)
         
-    optimal_rst = find_optimal_result(list(tested_rst.values()), True)
+    optimal_rst = find_optimal_result(list(tested_rst.values()), False)
     log.warn(f"最优模型为: [{optimal_rst.epoch}]")
 
     
@@ -99,7 +100,7 @@ def test_model(args, model_dir, model_epoch) :
     for epoch in range(1, args.epoches + 1) :
         log.debug(f"第 {epoch}/{args.epoches} 回合验证开始 ...")
         step = test(targs, epoch)
-        is_ok = (step < MAX_STEP)
+        is_ok = (step >= MAX_STEP)
         cnt_ok += (1 if is_ok else 0)
 
         min_step = (min_step if min_step < step else step)
@@ -127,6 +128,7 @@ def test(targs : TrainArgs, epoch) :
     obs = to_tensor(raw_obs[0], targs)  # 把观测空间的初始状态转换为 PyTorch 张量，并送入神经网络所在的设备
 
     # 开始验证
+    total_reward = 0
     cnt_step = 0
     for _ in range(MAX_STEP) :
 
@@ -134,17 +136,20 @@ def test(targs : TrainArgs, epoch) :
         action = select_next_action(targs.actor_model, obs)
         
         # 执行动作并获取下一个状态
-        next_obs, _, done, _, _ = targs.env.step(action)
+        next_obs, reward, done, _, _ = targs.env.step(action)
         obs = to_tensor(next_obs, targs)
-
+        
         # 渲染 GUI
+        total_reward += reward
         cnt_step +=1
         labels = [
             f"epoch: {epoch}", 
             f"step: {cnt_step}", 
             f"action: {action}", 
-            f"position: {obs[0][0]}",         # 小车位置
-            f"velocity: {obs[0][1]}",         # 小车速度
+            f"total_reward: {total_reward}", 
+            f"coordinates-x: {obs[0][0]}",      # 自由端的 x 坐标
+            f"coordinates-y: {obs[0][1]}",      # 自由端的 y 坐标
+            f"angular_velocity: {obs[0][2]}",   # 角速度
         ]
         targs.render(labels)
 
@@ -156,9 +161,13 @@ def test(targs : TrainArgs, epoch) :
     targs.save_render_ui(epoch)
         
     if cnt_step < MAX_STEP :
-        log.debug(f"[第 {epoch} 回合] 智能体在第 {cnt_step} 步完成挑战")
+        log.debug(f"[第 {epoch} 回合] 智能体在第 {cnt_step} 步提前结束挑战")
     else :
-        log.debug(f"[第 {epoch} 回合] 智能体未能在 {MAX_STEP} 步内完成挑战")
+        if total_reward > 0 :
+            log.debug(f"[第 {epoch} 回合] 智能体挑战坚持 {MAX_STEP} 步成功")
+        else :
+            log.debug(f"[第 {epoch} 回合] 智能体挑战尝试 {MAX_STEP} 步超时")
+            cnt_step = MAX_STEP - 1
     return cnt_step
 
 
