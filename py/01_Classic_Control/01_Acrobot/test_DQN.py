@@ -61,7 +61,7 @@ def test_models(args) :
 
     # 验证每个模型的成功率
     percentages = {}
-    for model_path in model_paths:
+    for model_path in model_paths :
         percentage = test_model(model_path, args)
         percentages[model_path] = percentage
 

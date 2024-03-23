@@ -155,3 +155,27 @@ def down_dim(high_tensor) :
     '''
     return high_tensor.squeeze(1)
 
+
+
+def find_optimal_result(tested_results, min_best=True) :
+    '''
+    寻找最优的测试结果
+    :params: tested_results 测试结果集
+    :params: min_best 最小步数为最优; 反之则最大步数为最优
+    :return: 高维张量
+    '''
+    tested_results.sort(key=lambda x: x.percentage, reverse=True)
+
+    # 然后，找到具有相同最大 percentage 的所有结果
+    max_percentage = tested_results[0].percentage
+    candidates = [result for result in tested_results if result.percentage == max_percentage]
+
+    # 最小步数 为最优
+    if min_best :
+        optimal_result = min(candidates, key=lambda x: x.min_step)
+
+    # 最大步数为最优
+    else :
+        optimal_result = max(candidates, key=lambda x: x.max_step)
+
+    return optimal_result

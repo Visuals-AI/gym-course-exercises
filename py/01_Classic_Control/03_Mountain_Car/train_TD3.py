@@ -27,8 +27,8 @@ import time
 import random
 import numpy as np
 from bean.train_args import TrainArgs
-from conf.settings import *
 from bean.transition import Transition
+from conf.settings import *
 from tools.utils import *
 from color_log.clog import log
 

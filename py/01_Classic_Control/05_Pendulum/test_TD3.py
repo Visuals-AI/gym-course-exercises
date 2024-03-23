@@ -58,26 +58,22 @@ def main(args) :
 
 def test_models(args, model_dir) :
 
-    # 验证每个模型的成功率
-    percentages = {}
+    # 验证每个模型的效果
+    tested_rst = {}
     model_epoches = get_model_epoches(model_dir)
     for model_epoch in model_epoches:
-        percentage = test_model(args, model_dir, model_epoch)
-        percentages[model_epoch] = percentage
+        rst = test_model(args, model_dir, model_epoch)
+        tested_rst[model_epoch] = rst
 
-    # 找出成功率最好的模型（不是训练次数越多就多好的，有可能存在过拟合问题）
+    # 找出效果最好的模型（不是训练次数越多就多好的，有可能存在过拟合问题）
     log.info("各个模型的验证如下:")
-    optimal_model_epoch = 0
-    max_percentage = 0
-    sorted_model_epoches = sorted(percentages, key=extract_number)
+    sorted_model_epoches = sorted(tested_rst, key=extract_number)
     for model_epoch in sorted_model_epoches :
-        percentage = percentages.get(model_epoch) or 0
-        log.info(f"  模型 [{model_epoch}] 挑战成功率为: [{percentage:.2f}%]")
-        if max_percentage < percentage :
-            max_percentage = percentage
-            optimal_model_epoch = model_epoch
-    log.warn(f"最优模型为: [{optimal_model_epoch}]")
-    log.warn(f"挑战成功率为: [{max_percentage:.2f}%]")
+        rst = tested_rst.get(model_epoch)
+        log.info(rst)
+        
+    optimal_rst = find_optimal_result(list(tested_rst.values()), True)
+    log.warn(f"最优模型为: [{optimal_rst.epoch}]")
 
     
 
@@ -116,7 +112,7 @@ def test_model(args, model_dir, model_epoch) :
     log.warn(f"本次验证中，智能体完成挑战的最小步数为 [{min_step}], 最大步数为 [{max_step}], 平均步数为 [{avg_step}]")
     log.info("----------------------------------------")
     targs.close_env()
-    return percentage
+    return TestedResult(model_epoch, min_step, max_step, avg_step, percentage)
 
 
 def test(targs : TrainArgs, epoch) :
@@ -192,7 +188,7 @@ def get_model_epoches(model_dir) :
     model_epoches = []
     filenames = os.listdir(model_dir)
     for filename in filenames:
-        match = re.search(r"epoch_(\d+).pth", filename)
+        match = re.search(r"epoch_(\d+)" + CHECKPOINT_SUFFIX, filename)
         if match:
             epoch = int(match.group(1))
             if epoch not in model_epoches:
@@ -200,15 +196,14 @@ def get_model_epoches(model_dir) :
     return model_epoches
 
 
-def extract_number(filepath) :
+def extract_number(model_epoch) :
     '''
     自定义排序函数
-    :params: filepath 文件路径
-    :return: 文件名字符串的排序模式
+    :params: model_epoch 模型的训练回合数
+    :return: 
     '''
-    filename = os.path.basename(filepath)
-    numbers = re.findall(r'\d+', filename)
-    return int(numbers[0]) if numbers else 0
+    return int(model_epoch)
+
 
 
 if __name__ == '__main__' :

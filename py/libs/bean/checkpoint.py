@@ -91,17 +91,20 @@ class CheckpointManager:
         :params: model_name 模型名称
         :return: 检查点对象
         '''
-        last_time = ''
-        checkpoint_names = [f for f in os.listdir(self.checkpoints_dir) if f.startswith(model_name) and f.endswith(CHECKPOINT_SUFFIX)]
+        last_epoch = 0
+        checkpoint_names = [
+            f for f in os.listdir(self.checkpoints_dir) \
+                if f.startswith(model_name) and f.endswith(CHECKPOINT_SUFFIX)
+        ]
         for cpn in checkpoint_names :
-            _datetime = re.search(r'\d+', cpn)[0]
-            last_time = max(last_time, _datetime)
+            epoch = int(re.search(r'(\d+)' + CHECKPOINT_SUFFIX, cpn)[1])
+            last_epoch = max(last_epoch, epoch)
 
         checkpoint = None
-        if last_time :
+        if last_epoch > 0 :
             checkpoint_path = ''
             for cpn in checkpoint_names :
-                if last_time in cpn :
+                if str(last_epoch) in cpn :
                     checkpoint_path = os.path.join(self.checkpoints_dir, cpn)
                     break
             checkpoint = self.load_checkpoint(checkpoint_path)
