@@ -22,6 +22,16 @@ def create_dirs(path):
         os.makedirs(path)
 
 
+def remove_dirs(path):
+    '''
+    删除目录（支持多层）
+    :params: path 目录路径
+    :return: None
+    '''
+    if not os.path.exists(path):
+        os.removedirs(path)
+
+
 def get_model_group_paths(model_dir, model_epoch) :
     '''
     根据回合数从模型目录中选择同一组模型路径

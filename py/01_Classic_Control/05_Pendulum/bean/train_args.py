@@ -12,7 +12,7 @@ import torch.optim as optim
 from bean.actor import Actor
 from bean.critic import Critic
 from collections import deque
-from tools.utils import scan_device
+from tools.utils import scan_device, remove_dirs
 from bean.tagger import Tagger
 from bean.checkpoint import CheckpointManager
 from conf.settings import *
@@ -44,6 +44,7 @@ class TrainArgs :
         if eval :
             self.tagger = Tagger(COURSE_NAME, MODEL_NAME, ENV_NAME, True)
             self.eval(self.models)  # 评估模式
+            self.debug = args.debug
 
         else :
             self.tagger = Tagger(COURSE_NAME, MODEL_NAME, ENV_NAME, False)
@@ -253,6 +254,8 @@ class TrainArgs :
         :return: None
         '''
         if self.zero :
+            tensor_dir = get_tensor_path(COURSE_NAME)
+            remove_dirs(tensor_dir)
             return  # 强制从零开始训练，不加载检查点
         
         for idx, mgr in enumerate(self.mgrs) :

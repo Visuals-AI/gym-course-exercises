@@ -45,6 +45,7 @@ def arguments() :
     parser.add_argument('-m', '--model_epoch', dest='model_epoch', type=int, default=0, help='根据训练回合数选择验证单个模型')
     parser.add_argument('-c', '--cpu', dest='cpu', action='store_true', default=False, help='强制使用 CPU: 默认情况下，自动优先使用 GPU 训练（除非没有 GPU）')
     parser.add_argument('-e', '--epoches', dest='epoches', type=int, default=100, help='验证次数')
+    parser.add_argument('-d', '--debug', dest='debug', action='store_true', default=False, help='显示调试日志')
     return parser.parse_args()
 
 
@@ -100,7 +101,7 @@ def test_model(args, model_dir, model_epoch) :
     avg_step = 0
     max_reward = 0
     for epoch in range(1, args.epoches + 1) :
-        log.debug(f"第 {epoch}/{args.epoches} 回合验证开始 ...")
+        logdebug(f"第 {epoch}/{args.epoches} 回合验证开始 ...", targs.debug)
         step, reward = test(targs, epoch)
         is_ok = (step >= MAX_STEP)
         cnt_ok += (1 if is_ok else 0)
@@ -133,7 +134,7 @@ def test(targs : TrainArgs, epoch) :
     # 开始验证
     total_reward = 0
     cnt_step = 0
-    for _ in range(MAX_STEP) :
+    for step in range(MAX_STEP) :
 
         # 选择下一步动作
         action = select_next_action(targs.actor_model, obs)
@@ -142,7 +143,7 @@ def test(targs : TrainArgs, epoch) :
         next_obs, reward, done, _, _ = targs.env.step(action)
         obs = to_tensor(next_obs, targs)
 
-        reward = adjust(obs, reward)
+        reward = adjust(obs, reward, step)
         total_reward += reward
         cnt_step +=1
 
@@ -166,12 +167,12 @@ def test(targs : TrainArgs, epoch) :
     targs.save_render_ui(epoch)
         
     if cnt_step < MAX_STEP :
-        log.debug(f"[第 {epoch} 回合] 智能体在第 {cnt_step} 步提前结束挑战")
+        logdebug(f"[第 {epoch} 回合] 智能体在第 {cnt_step} 步提前结束挑战", targs.debug)
     else :
         if total_reward > 0 :
-            log.debug(f"[第 {epoch} 回合] 智能体挑战坚持 {MAX_STEP} 步成功")
+            logdebug(f"[第 {epoch} 回合] 智能体挑战坚持 {MAX_STEP} 步成功", targs.debug)
         else :
-            log.debug(f"[第 {epoch} 回合] 智能体挑战尝试 {MAX_STEP} 步超时")
+            logdebug(f"[第 {epoch} 回合] 智能体挑战尝试 {MAX_STEP} 步超时", targs.debug)
             cnt_step = MAX_STEP - 1
     return (cnt_step, total_reward)
 
@@ -217,6 +218,11 @@ def extract_number(model_epoch) :
     :return: 
     '''
     return int(model_epoch)
+
+
+def logdebug(msg, show=False) :
+    if show :
+        log.debug(msg)
 
 
 
