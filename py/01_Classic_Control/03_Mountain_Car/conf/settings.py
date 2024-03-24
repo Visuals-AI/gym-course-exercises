@@ -14,8 +14,8 @@ CRITIC_MODEL_NAME = 'critic'
 
 # 交互的环境名称
 ENV_NAME = 'MountainCarContinuous-v0'
-MAX_STEP = 999  # MountainCarContinuous 问题的 v0 版本要求在 999 步内完成
-
+MAX_STEP = 200  # MountainCarContinuous 问题的 v0 版本要求在 999 步内完成
+                # 但实际上 100 步以内就可以完成， 999 步训练太耗时间了，没必要
 
 # 引入公共配置项
 from conf.global_settings import *

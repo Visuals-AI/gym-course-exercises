@@ -23,6 +23,7 @@ import argparse
 import torch
 from bean.train_args import TrainArgs
 from bean.tested_rst import TestedResult
+from utils.adjust import *
 from tools.utils import *
 from conf.settings import *
 from color_log.clog import log
@@ -97,14 +98,16 @@ def test_model(args, model_dir, model_epoch) :
     min_step = MAX_STEP
     max_step = 0
     avg_step = 0
+    max_reward = 0
     for epoch in range(1, args.epoches + 1) :
         log.debug(f"第 {epoch}/{args.epoches} 回合验证开始 ...")
-        step = test(targs, epoch)
+        step, reward = test(targs, epoch)
         is_ok = (step >= MAX_STEP)
         cnt_ok += (1 if is_ok else 0)
 
-        min_step = (min_step if min_step < step else step)
-        max_step = (max_step if max_step > step else step)
+        max_reward = max(max_reward, reward)
+        min_step = min(min_step, step)
+        max_step = max(max_step, step)
         avg_step += step
 
     avg_step = int(avg_step / args.epoches)
@@ -113,7 +116,7 @@ def test_model(args, model_dir, model_epoch) :
     log.warn(f"本次验证中，智能体完成挑战的最小步数为 [{min_step}], 最大步数为 [{max_step}], 平均步数为 [{avg_step}]")
     log.info("----------------------------------------")
     targs.close_env()
-    return TestedResult(model_epoch, min_step, max_step, avg_step, percentage)
+    return TestedResult(model_epoch, min_step, max_step, avg_step, percentage, max_reward)
 
 
 def test(targs : TrainArgs, epoch) :
@@ -138,10 +141,12 @@ def test(targs : TrainArgs, epoch) :
         # 执行动作并获取下一个状态
         next_obs, reward, done, _, _ = targs.env.step(action)
         obs = to_tensor(next_obs, targs)
-        
-        # 渲染 GUI
+
+        reward = adjust(obs, reward)
         total_reward += reward
         cnt_step +=1
+
+        # 渲染 GUI
         labels = [
             f"epoch: {epoch}", 
             f"step: {cnt_step}", 
@@ -168,7 +173,7 @@ def test(targs : TrainArgs, epoch) :
         else :
             log.debug(f"[第 {epoch} 回合] 智能体挑战尝试 {MAX_STEP} 步超时")
             cnt_step = MAX_STEP - 1
-    return cnt_step
+    return (cnt_step, total_reward)
 
 
 def select_next_action(act_model, obs) :
@@ -202,7 +207,7 @@ def get_model_epoches(model_dir) :
             epoch = int(match.group(1))
             if epoch not in model_epoches:
                 model_epoches.append(epoch)
-    return model_epoches
+    return sorted(model_epoches)
 
 
 def extract_number(model_epoch) :
