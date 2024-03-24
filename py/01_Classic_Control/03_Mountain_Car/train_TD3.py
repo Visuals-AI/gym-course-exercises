@@ -230,8 +230,8 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
 
 def td3(targs: TrainArgs, total_loss, step_counter) :
     '''
-    进行 DQN 学习（基于 Q 值的强化学习方法）：
-        这个过程是 DQN 学习算法的核心，它利用从环境中收集的经验来不断调整和优化网络，使得预测的 Q 值尽可能接近实际的 Q 值。
+    进行 TD3 学习（基于 Q 值的强化学习方法）：
+        这个过程是 TD3 学习算法的核心，它利用从环境中收集的经验来不断调整和优化网络，使得预测的 Q 值尽可能接近实际的 Q 值。
         通过迭代这个过程，使得神经网络逐渐学习到一个策略，该策略可以最大化累积奖励。
     :params: targs 用于训练的环境和模型关键参数
     :params: action 下一步动作
@@ -293,7 +293,6 @@ def td3(targs: TrainArgs, total_loss, step_counter) :
     critic_loss = F.mse_loss(current_Q1, target_Q_values) + F.mse_loss(current_Q2, target_Q_values)
     total_loss += critic_loss.item()    # 更新累积损失
     optimize_params(targs.critic_model, targs.critic_optimizer, critic_loss)    # 参数优化
-
 
     # ===============================
     # 延迟更新 Actor 网络

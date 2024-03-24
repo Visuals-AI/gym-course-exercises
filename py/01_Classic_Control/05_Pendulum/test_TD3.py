@@ -23,6 +23,7 @@ import argparse
 import torch
 from bean.train_args import TrainArgs
 from bean.tested_rst import TestedResult
+from utils.rotation import RotationDetector
 from utils.adjust import *
 from tools.utils import *
 from conf.settings import *
@@ -132,6 +133,7 @@ def test(targs : TrainArgs, epoch) :
     obs = to_tensor(raw_obs[0], targs)  # 把观测空间的初始状态转换为 PyTorch 张量，并送入神经网络所在的设备
 
     # 开始验证
+    rd = RotationDetector()
     total_reward = 0
     cnt_step = 0
     for step in range(MAX_STEP) :
@@ -143,7 +145,9 @@ def test(targs : TrainArgs, epoch) :
         next_obs, reward, done, _, _ = targs.env.step(action)
         obs = to_tensor(next_obs, targs)
 
-        reward = adjust(obs, reward, step)
+        is_rotation = rd.update(obs, action)
+        reward = adjust(obs, action, reward, is_rotation, step)
+
         total_reward += reward
         cnt_step +=1
 

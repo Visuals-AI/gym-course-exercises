@@ -28,6 +28,7 @@ import random
 import numpy as np
 from bean.train_args import TrainArgs
 from bean.transition import Transition
+from utils.rotation import RotationDetector
 from utils.adjust import *
 from tools.utils import *
 from conf.settings import *
@@ -120,6 +121,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     total_loss = 0                  # 累计损失率。反映了预测 Q 值和目标 Q 值之间的差异
     step_counter = 0                # 训练步数计数器
     bgn_time = current_seconds()    # 训练时长计数器
+    rd = RotationDetector()
 
     # 开始训练智能体
     while True:
@@ -130,7 +132,8 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         next_obs, reward, done = exec_next_action(targs, action, epoch, step_counter)
 
         # 调整奖励
-        reward = adjust(next_obs, reward, step_counter)
+        is_rotation = rd.update(next_obs, action)
+        reward = adjust(next_obs, action, reward, is_rotation, step_counter)
 
         # 向【经验回放存储】添加当前 step 执行前后状态、奖励情况等
         targs.memory.append((obs, action, reward, next_obs, done))
@@ -226,13 +229,10 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
 
 
 
-
-
-
 def td3(targs: TrainArgs, total_loss, step_counter) :
     '''
-    进行 DQN 学习（基于 Q 值的强化学习方法）：
-        这个过程是 DQN 学习算法的核心，它利用从环境中收集的经验来不断调整和优化网络，使得预测的 Q 值尽可能接近实际的 Q 值。
+    进行 TD3 学习（基于 Q 值的强化学习方法）：
+        这个过程是 TD3 学习算法的核心，它利用从环境中收集的经验来不断调整和优化网络，使得预测的 Q 值尽可能接近实际的 Q 值。
         通过迭代这个过程，使得神经网络逐渐学习到一个策略，该策略可以最大化累积奖励。
     :params: targs 用于训练的环境和模型关键参数
     :params: action 下一步动作
@@ -299,7 +299,7 @@ def td3(targs: TrainArgs, total_loss, step_counter) :
     # ===============================
     # 延迟更新 Actor 网络
     # ===============================
-    # 在 TD3 中，Actor网络的更新频率较低（例如，每2次Critic更新后更新一次Actor），以减少策略的方差。
+    # 在 TD3 中，Actor 网络的更新频率较低（例如，每 2 次 Critic 更新后更新一次 Actor），以减少策略的方差。
     if step_counter % targs.update_action_every == 0 :
         actor_loss = -targs.critic_model.Q1(obs_batch, targs.actor_model(obs_batch)).mean()
         total_loss += actor_loss.item()     # 更新累积损失
