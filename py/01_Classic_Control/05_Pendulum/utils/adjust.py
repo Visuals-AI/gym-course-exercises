@@ -4,6 +4,7 @@
 # @Time   : 2024/03/23 13:52
 # -----------------------------------------------
 
+import numpy as np
 from conf.settings import MAX_STEP
 from utils.rotation import RotationDetector
 from tools.utils import is_close_to_zero
@@ -59,37 +60,32 @@ def adjust(obs, action, reward, rotation: RotationDetector, step):
     # Gym 公式的系数的大小说明了: 角度 > 角速度 > 动作值
     # 根据重要程度重新设计奖励函数
 
-    thresholds_xy = [i/100 for i in range(1, 50)]    # xy 阈值等级，从 0.01 -> 0.5
+    thresholds_xy = [i/100 for i in range(1, 50)]    # xy 阈值等级，从 0.01 -> 0.5  [ 0.01, 0.02, .., 0.5]
     reward_xy = [50 - i for i in range(0, 50)]       # xy 阈值等级奖励，从 50 -> 1
 
-    # 摆锤滞留在三、四象限
+
     if x < 0 :
+        t_xy = reversed(np.arange(-1, 0.01, 0.01))
+        r_xy = [10 + i * 10 for i in t_xy]
+        print(t_xy)
+        print(r_xy)
+        for idx, threshold in enumerate(t_xy) :
+            if is_close_to_zero(1 + x, threshold) and is_close_to_zero(y, threshold) :
+                reward += r_xy[idx]
+                break
 
-        # 如果角速度很小，陷入停滞，给予惩罚，
-        # 但是惩罚不能太小，否则智能体绕一圈后、在垂直位置又刷回来了
-        if abs(v) < 1 :
-            reward -= step
-
-        # 第三象限、且角速度顺时针向上、且扭矩顺时针向上（加速从左侧绕上去） 或
-        # 第四象限、且角速度逆时针向上、且扭矩顺时针向上（加速从右侧绕上去）
-        # elif (y > 0 and v < 0 and a < 0) or (y < 0 and v > 0 and a > 0) :
-        #     reward = 0  # 不予惩罚
-
-    # 滞留在一、二象限
     else :
-        # 第一象限、且角速度逆时针向上 或
-        # 第二象限、且角速度顺时针向上 
-        if (y < 0 and v > 0) or (y > 0 and v < 0) : 
-            reward = 0  # 不予惩罚
+        t_xy = reversed(np.arange(0, 1.01, 0.01))
+        r_xy = [20 + i * 10 for i in t_xy]
 
-            # 根据摆锤接近垂直位置的距离，给予不同的等级的奖励
-            # 因为影响奖励系数公式最大的因素是角度，故转换为 xy 坐标距离
-            for idx, threshold in enumerate(thresholds_xy) :
-                if is_close_to_zero(1 - x, threshold) and is_close_to_zero(y, threshold) :
-                    reward += reward_xy[idx]
-                    # print(f"xy reward: {reward}, x: {x}, y: {y}, v: {v}")
-                    reward += _adjust(reward, v)
-                    break
+        # 根据摆锤接近垂直位置的距离，给予不同的等级的奖励
+        # 因为影响奖励系数公式最大的因素是角度，故转换为 xy 坐标距离
+        for idx, threshold in enumerate(t_xy) :
+            if is_close_to_zero(1 - x, threshold) and is_close_to_zero(y, threshold) :
+                reward += r_xy[idx]
+                # print(f"xy reward: {reward}, x: {x}, y: {y}, v: {v}")
+                reward += _adjust(reward, v)
+                break
     return (reward, terminated)
 
 
@@ -97,11 +93,13 @@ def adjust(obs, action, reward, rotation: RotationDetector, step):
 # 角速度越接近 0，给予更高的追加奖励，因为速度接近 0 等价于不易离开垂直位置
 def _adjust(reward, angular_velocity) :
     thresholds_v = [i/10 for i in range(1, 21)]     # 角速度 阈值等级，从 0.1 -> 2
-    reward_v = [20 - 10*i for i in range(0, 20)]       # 角速度 阈值等级奖励，从 20 -> 1
+    reward_v = [20 - 10*i for i in range(0, 20)]    # 角速度 阈值等级奖励，从 20 -> 1
     
-    for idx, threshold in enumerate(thresholds_v) :
+    t_v = reversed(np.arange(0, 2.01, 0.01))
+    r_v = [10 + i * 10 for i in t_v]
+    for idx, threshold in enumerate(t_v) :
         if is_close_to_zero(angular_velocity, threshold) :
-            reward += reward_v[idx]
+            reward += r_v[idx]
             # print(f"v reward: {reward}, v: {angular_velocity}")
             break
     return reward
