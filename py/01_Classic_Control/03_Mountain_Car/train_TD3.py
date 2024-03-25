@@ -156,7 +156,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         if done:
             break
 
-        total_loss = td3(targs, total_loss, step_counter)  # TD3 学习（核心算法，从【经验回放存储】中收集经验）
+        total_loss += td3(targs, step_counter)  # TD3 学习（核心算法，从【经验回放存储】中收集经验）
     # while end
 
     # 保存智能体这个回合渲染的动作 UI
@@ -228,17 +228,17 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
 
 
 
-def td3(targs: TrainArgs, total_loss, step_counter) :
+def td3(targs: TrainArgs, step_counter) :
     '''
     进行 TD3 学习（基于 Q 值的强化学习方法）：
         这个过程是 TD3 学习算法的核心，它利用从环境中收集的经验来不断调整和优化网络，使得预测的 Q 值尽可能接近实际的 Q 值。
         通过迭代这个过程，使得神经网络逐渐学习到一个策略，该策略可以最大化累积奖励。
     :params: targs 用于训练的环境和模型关键参数
     :params: action 下一步动作
-    :params: total_loss 累积损失
     :params: step_counter 步数计数器
     :return: 执行动作后观测空间返回的状态
     '''
+    total_loss = 0
 
     # 确保只有当【经验回放存储】中的样本数量超过批处理大小时，才进行学习过程
     # 这是为了确保有足够的样本来进行有效的批量学习
@@ -290,8 +290,10 @@ def td3(targs: TrainArgs, total_loss, step_counter) :
     # obs_batch 必须形状 tensor 32x2
     # act_batch 必须形状 tensor 32x1
     current_Q1, current_Q2 = targs.critic_model(obs_batch, act_batch)
+
+    # 计算目标 Q 与实际 Q 之间的损失
     critic_loss = F.mse_loss(current_Q1, target_Q_values) + F.mse_loss(current_Q2, target_Q_values)
-    total_loss += critic_loss.item()    # 更新累积损失
+    total_loss += critic_loss.item()        # 更新累积损失
     optimize_params(targs.critic_model, targs.critic_optimizer, critic_loss)    # 参数优化
 
     # ===============================

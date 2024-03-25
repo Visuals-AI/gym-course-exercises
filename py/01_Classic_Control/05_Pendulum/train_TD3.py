@@ -6,7 +6,7 @@
 # 经典控制： Pendulum （倒立摆-连续动作）
 #   Pendulum 是一个倒立摆摆动问题。
 #   该系统由一个摆锤组成，摆锤的一端连接到固定点，另一端自由。
-#   摆锤从一个随机位置开始，目标是在自由端施加扭矩，将其摆动到直立位置，其重心位于固定点的正上方，然后坚持越久越好。
+#   摆锤从一个随机位置开始，目标是在自由端施加扭矩，使其摆动到重心位于固定点的正上方的垂直位置，然后坚持得越久越好。
 # 
 # 相关文档：
 #   https://gymnasium.farama.org/environments/classic_control/pendulum/
@@ -132,8 +132,8 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         next_obs, reward, done = exec_next_action(targs, action, epoch, step_counter)
 
         # 调整奖励
-        is_rotation = rd.update(next_obs, action)
-        reward = adjust(next_obs, action, reward, is_rotation, step_counter)
+        reward, terminated = adjust(next_obs, action, reward, rd, step_counter)
+        done = terminated or done
 
         # 向【经验回放存储】添加当前 step 执行前后状态、奖励情况等
         targs.memory.append((obs, action, reward, next_obs, done))
@@ -158,7 +158,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         if done:
             break
 
-        total_loss = td3(targs, total_loss, step_counter)  # TD3 学习（核心算法，从【经验回放存储】中收集经验）
+        total_loss += td3(targs, step_counter)  # TD3 学习（核心算法，从【经验回放存储】中收集经验）
     # while end
 
     # 保存智能体这个回合渲染的动作 UI
@@ -229,17 +229,17 @@ def exec_next_action(targs: TrainArgs, action, epoch=-1, step_counter=-1) :
 
 
 
-def td3(targs: TrainArgs, total_loss, step_counter) :
+def td3(targs: TrainArgs, step_counter) :
     '''
     进行 TD3 学习（基于 Q 值的强化学习方法）：
         这个过程是 TD3 学习算法的核心，它利用从环境中收集的经验来不断调整和优化网络，使得预测的 Q 值尽可能接近实际的 Q 值。
         通过迭代这个过程，使得神经网络逐渐学习到一个策略，该策略可以最大化累积奖励。
     :params: targs 用于训练的环境和模型关键参数
     :params: action 下一步动作
-    :params: total_loss 累积损失
     :params: step_counter 步数计数器
     :return: 执行动作后观测空间返回的状态
     '''
+    total_loss = 0
 
     # 确保只有当【经验回放存储】中的样本数量超过批处理大小时，才进行学习过程
     # 这是为了确保有足够的样本来进行有效的批量学习
@@ -332,7 +332,7 @@ def optimize_params(model, optimizer, loss, max_grad_norm=1.0) :
     :return: 
     '''
     optimizer.zero_grad() # 清除之前的梯度。PyTorch 会默认累积梯度，如果不清除梯度，新计算的梯度会被加到已存在的梯度上，在 DQN 中这会使得训练过程变得不稳定，甚至可能导致模型完全无法学习。
-    loss.backward()             # 反向传播，计算梯度
+    loss.backward()       # 反向传播，计算梯度
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)  # 梯度裁剪
     optimizer.step()      # 更新参数（梯度下降，指使用计算出的梯度来更新模型参数的过程）
 

@@ -6,7 +6,7 @@
 # 经典控制： Pendulum （倒立摆-连续动作）
 #   Pendulum 是一个倒立摆摆动问题。
 #   该系统由一个摆锤组成，摆锤的一端连接到固定点，另一端自由。
-#   摆锤从一个随机位置开始，目标是在自由端施加扭矩，将其摆动到直立位置，其重心位于固定点的正上方，然后坚持越久越好。
+#   摆锤从一个随机位置开始，目标是在自由端施加扭矩，使其摆动到重心位于固定点的正上方的垂直位置，然后坚持得越久越好。
 # 
 # 相关文档：
 #   https://gymnasium.farama.org/environments/classic_control/pendulum/
@@ -145,9 +145,10 @@ def test(targs : TrainArgs, epoch) :
         next_obs, reward, done, _, _ = targs.env.step(action)
         obs = to_tensor(next_obs, targs)
 
-        is_rotation = rd.update(obs, action)
-        reward = adjust(obs, action, reward, is_rotation, step)
-
+        # 对其训练时的奖励函数
+        reward, terminated = adjust(obs, action, reward, rd, step)
+        done = terminated or done
+        
         total_reward += reward
         cnt_step +=1
 
@@ -171,7 +172,7 @@ def test(targs : TrainArgs, epoch) :
     targs.save_render_ui(epoch)
         
     if cnt_step < MAX_STEP :
-        logdebug(f"[第 {epoch} 回合] 智能体在第 {cnt_step} 步提前结束挑战", targs.debug)
+        logdebug(f"[第 {epoch} 回合] 智能体在第 {cnt_step} 步挑战失败", targs.debug)
     else :
         if total_reward > 0 :
             logdebug(f"[第 {epoch} 回合] 智能体挑战坚持 {MAX_STEP} 步成功", targs.debug)
