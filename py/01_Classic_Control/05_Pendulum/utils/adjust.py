@@ -59,7 +59,7 @@ def adjust(obs, action, reward, rotation: RotationDetector, step):
     # Gym 公式的系数的大小说明了: 角度 > 角速度 > 动作值
     # 根据重要程度重新设计奖励函数
 
-    thresholds_xy = [i/100 for i in range(1, 50)]       # xy 阈值等级，从 0.01 -> 0.5
+    thresholds_xy = [i/100 for i in range(1, 50)]    # xy 阈值等级，从 0.01 -> 0.5
     reward_xy = [50 - i for i in range(0, 50)]       # xy 阈值等级奖励，从 50 -> 1
 
     # 摆锤滞留在三、四象限
@@ -72,8 +72,8 @@ def adjust(obs, action, reward, rotation: RotationDetector, step):
 
         # 第三象限、且角速度顺时针向上、且扭矩顺时针向上（加速从左侧绕上去） 或
         # 第四象限、且角速度逆时针向上、且扭矩顺时针向上（加速从右侧绕上去）
-        elif (y > 0 and v < 0 and a < 0) or (y < 0 and v > 0 and a > 0) :
-            reward = 0  # 不予惩罚
+        # elif (y > 0 and v < 0 and a < 0) or (y < 0 and v > 0 and a > 0) :
+        #     reward = 0  # 不予惩罚
 
     # 滞留在一、二象限
     else :
