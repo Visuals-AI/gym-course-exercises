@@ -20,21 +20,21 @@ T12_XY = [ i/100 for i in range(0, 101) ]
 R12_XY = [ 20 - i * 10 for i in T12_XY ]
 
 
-# 1.3. 角速度绝对值， < 4 奖励， > 4 惩罚
-T1234_V = [ i/10 for i in range(0, 81) ]
-R1234_V = [ 40 - i * 10 for i in T1234_V ]
+# 1.3. 角速度绝对值， < 4 不奖不罚， > 4 惩罚
+T1234_V = [ i/10 for i in range(40, 81) ]
+R1234_V = [ -i for i in T1234_V ]
 
 
 
-# 2. 局部奖惩
-
-# 2.2. 在垂直向上附近 0 - 0.009 范围内微调，约接近 0 奖励越大
-TTOP_XY = [ i/1000 for i in range(0, 10) ]
-RTOP_XY = [ i * 10000 for i in TTOP_XY ]
+# 2. 局部极致奖惩
 
 # 2.2. 在垂直向上附近 0 - 0.009 范围内微调，约接近 0 奖励越大
-TTOP_V = [ i/1000 for i in range(0, 20) ]
-RTOP_V = [ i * 10000 for i in TTOP_V ]
+TTOP_XY = [ i/1000 for i in range(0, 11) ]
+RTOP_XY = [ 100 - i * 10000 for i in TTOP_XY ]
+
+# 2.2. 在垂直向上附近 0 - 0.009 范围内微调，约接近 0 奖励越大
+TTOP_V = [ i/1000 for i in range(0, 11) ]
+RTOP_V = [ 100 - i * 10000 for i in TTOP_V ]
 
 
 
