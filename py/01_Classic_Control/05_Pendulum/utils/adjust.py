@@ -10,17 +10,17 @@ from tools.utils import is_close_to_zero
 
 # 三四象限的坐标阶段阈值和奖励
 T34_XY = [ i/100 for i in range(1, 101) ]
-R34_XY = [ i * 10 - 20 for i in T34_XY ]
+R34_XY = [ i * 10 - 10 for i in T34_XY ]
 
 
 # 一二象限的坐标阶段阈值和奖励
 T12_XY = [ i/100 for i in range(0, 101) ]
-R12_XY = [ 10 - i * 10 for i in T12_XY ]
+R12_XY = [ 20 - i * 10 for i in T12_XY ]
 
 
 # 一二象限的角速度阶段阈值和奖励
 T12_V = [ i/100 for i in range(0, 201) ]
-R12_V = [ 10 - i * 10 for i in T12_V ]
+R12_V = [ 30 - i * 10 for i in T12_V ]
 
  
 
@@ -85,7 +85,6 @@ def adjust(obs, action, reward, td: TerminateDetector, step):
                 reward += R34_XY[idx]
                 # print(f"xy reward: {reward}, x: {x}, y: {y}, v: {v}, step: {step}")
                 break
-
     else :
 
         # x 接近 1， y 接近 0，奖励越大
@@ -95,7 +94,6 @@ def adjust(obs, action, reward, td: TerminateDetector, step):
                 # print(f"xy reward: {reward}, x: {x}, y: {y}, v: {v}, step: {step}")
                 reward += _adjust(reward, v)
                 break
-
 
     # 完全在垂直正中且速度为 0，给予最大奖励
     if is_close_to_zero(1 - x) and is_close_to_zero(y) and is_close_to_zero(v) :

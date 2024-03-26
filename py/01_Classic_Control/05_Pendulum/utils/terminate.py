@@ -18,15 +18,23 @@ class TerminateDetector :
     # 若浪费步数在 三四 象限徘徊，明显不是最优解
     MAX_WANDER = MAX_STEP / 4
 
+    # 最大角速度
+    # 若超过一定步数都是最大速度，说明摆锤在转圈
+    MAX_V = 7
+
     def __init__(self) :
         self.quadrants = [False] * 4    # 摆锤经过的象限
         self.cnt34 = 0                  # 三四象限徘徊计数
+        self.cnt_maxv = 0               # 最大角速度计数
 
 
     # 更新摆锤状态
     def update(self, x, y, v, a):
         if x < 0 :
             self.cnt34 += 1
+
+        if abs(v) >= self.MAX_V :
+            self.cnt_maxv += 1
 
         if self.in_quadrant1(x, y) :
             self.quadrants[0] = True
@@ -52,13 +60,19 @@ class TerminateDetector :
 
 
     def is_wander(self) :
-        return (self.cnt34 > self.MAX_WANDER)
+        return self.cnt34 > self.MAX_WANDER
 
+
+    def is_overspeed(self) :
+        return self.cnt_maxv > self.MAX_WANDER
+    
 
     def is_rotation(self) :
         return sum(self.quadrants) > self.MAX_QUADRANT
 
 
     def is_terminate(self) :
-        return self.is_wander() or self.is_rotation()
+        # return self.is_wander() or self.is_rotation()
+        return self.is_wander() or self.is_overspeed()
+
     

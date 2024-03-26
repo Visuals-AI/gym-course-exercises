@@ -15,7 +15,7 @@ def get_model_path(course_name, model_name, epoch=0) :
 # 检查点配置
 CHECKPOINTS_DIR = './out/checkpoints'
 CHECKPOINT_SUFFIX = '.pth'
-SAVE_INTERVAL = 500
+SAVE_INTERVAL = 200
 def get_checkpoint_path(course_name, model_name, epoch=0) :
     return f"{CHECKPOINTS_DIR}/{course_name}/{model_name}_model_epoch_{epoch}{CHECKPOINT_SUFFIX}"
 
