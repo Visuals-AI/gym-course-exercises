@@ -28,7 +28,7 @@ import random
 import numpy as np
 from bean.train_args import TrainArgs
 from bean.transition import Transition
-from utils.rotation import RotationDetector
+from utils.terminate import TerminateDetector
 from utils.adjust import *
 from tools.utils import *
 from conf.settings import *
@@ -121,7 +121,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     total_loss = 0                  # 累计损失率。反映了预测 Q 值和目标 Q 值之间的差异
     step_counter = 0                # 训练步数计数器
     bgn_time = current_seconds()    # 训练时长计数器
-    rd = RotationDetector()
+    td = TerminateDetector()
 
     # 开始训练智能体
     while True:
@@ -132,7 +132,7 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         next_obs, reward, done = exec_next_action(targs, action, epoch, step_counter)
 
         # 调整奖励
-        reward, terminated = adjust(next_obs, action, reward, rd, step_counter)
+        reward, terminated = adjust(next_obs, action, reward, td, step_counter)
         done = terminated or done
 
         # 向【经验回放存储】添加当前 step 执行前后状态、奖励情况等
