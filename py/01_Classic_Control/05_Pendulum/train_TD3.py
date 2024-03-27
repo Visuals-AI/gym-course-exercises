@@ -28,6 +28,7 @@ import random
 import numpy as np
 from bean.train_args import TrainArgs
 from bean.transition import Transition
+from utils.ctrl_env import CtrlInitEnv
 from utils.terminate import TerminateDetector
 from utils.adjust import *
 from tools.utils import *
@@ -113,9 +114,10 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     :return: None
     '''
     targs.reset_render_cache()
-    raw_obs = targs.reset_env()         # 重置环境（在 Pendulum 环境中，这个初始状态就是观测空间，它包含了关于 Pendulum 状态的数组）
-                                        # raw_obs 的第 0 个元素才是状态数组 (array([ ... ], dtype=float32), {})
-    obs = to_tensor(raw_obs[0], targs, False)  # 把观测空间状态数组送入神经网络所在的设备
+
+    cie = CtrlInitEnv(targs.env, targs.epoches) # 通过不断重试，获得各个阶段理想的初始状态，
+    raw_obs = cie.reset(epoch)                  # 以使用“中间难度起点奖励(SoID)”策略帮智能体建立行动策略框架
+    obs = to_tensor(raw_obs[0], targs, False)   # 把观测空间状态数组送入神经网络所在的设备
     
     total_reward = 0                # 累计智能体从环境中获得的总奖励。在每个训练回合结束时，total_reward 将反映智能体在该回合中的总体表现。奖励越高，意味着智能体的性能越好。
     total_loss = 0                  # 累计损失率。反映了预测 Q 值和目标 Q 值之间的差异

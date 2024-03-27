@@ -12,14 +12,13 @@ from tools.utils import is_close_to_zero
 
 # 1.1. 三四象限的坐标阶段阈值和奖励（越接近垂直向下，惩罚越重）
 T34_XY = [ i/100 for i in range(0, 101) ]
-R34_XY = [ i * 15 - 15 for i in T34_XY ]
+R34_XY = [ i * 10 - 10 for i in T34_XY ]
 
 # 1.2. 一二象限的坐标阶段阈值和奖励（越接近垂直向上，奖励越大）
 T12_XY = [ i/100 for i in range(0, 101) ]
 R12_XY = [ 20 - i * 10 for i in T12_XY ]
 
 # 1.3. 角速度绝对值，避免速度过快刹不住。 < 5 不奖不罚， > 5 惩罚
-# 摆锤从最低点摆动至脱离三四象限，至少需要 4.43 的角速度
 T1234_V = [ i/10 for i in range(50, 81) ]
 R1234_V = [ -i for i in T1234_V ]
 
@@ -93,6 +92,7 @@ def adjust(obs, action, reward, td: TerminateDetector, step):
     reward = 0
 
     # 角速度绝对值，  < 5 不奖不罚， > 5 惩罚
+    # 计算过摆锤从最低点摆动至脱离三四象限，至少需要 4.43 的角速度，所以更大的角速度是没必要的
     for idx, threshold in enumerate(T1234_V) :
         if is_close_to_zero(v, threshold) :
             reward += R1234_V[idx]
@@ -125,8 +125,7 @@ def adjust(obs, action, reward, td: TerminateDetector, step):
                 reward += R12_XY[idx]
                 break
 
-        
-
+        # 在接近垂直向上位置时，精细控制可以获得更大的追加奖励
         for idx, threshold in enumerate(TTOP_XY) :
             if is_close_to_zero(1 - x, threshold) and is_close_to_zero(y, threshold) :
                 reward += RTOP_XY[idx]
@@ -134,7 +133,6 @@ def adjust(obs, action, reward, td: TerminateDetector, step):
                 reward += _adjust(reward, v)
                 break
         
-
         # 完全在垂直正中且速度为 0，给予最大奖励
         if is_close_to_zero(1 - x) and is_close_to_zero(y) and is_close_to_zero(v) :
             reward += 1000
