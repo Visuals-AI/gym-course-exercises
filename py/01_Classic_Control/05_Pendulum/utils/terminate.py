@@ -13,6 +13,7 @@ class TerminateDetector :
 
     # 完成一轮游戏，摆锤最多只会经过 3 个象限（允许在一二象限微小摆动），最少 1 个象限
     # 若摆锤经过全部 4 个象限，说明摆锤旋转了一圈；即使没旋转，也浪费步数，不是最优解
+    # 但事实上摆锤在最低点来回借力时，确实需要经过四个象限，因此不能依赖此判断
     MAX_QUADRANT = 3
 
     # 若浪费步数在 三四 象限徘徊，明显不是最优解
@@ -20,7 +21,9 @@ class TerminateDetector :
 
     # 最大角速度
     # 若超过一定步数都是最大速度，说明摆锤在转圈
-    MAX_V = 7
+    MAX_V = 6
+
+    MAX_SPEED = MAX_STEP / 4
 
     def __init__(self) :
         self.quadrants = [False] * 4    # 摆锤经过的象限
@@ -64,7 +67,7 @@ class TerminateDetector :
 
 
     def is_overspeed(self) :
-        return self.cnt_maxv > self.MAX_WANDER
+        return self.cnt_maxv > self.MAX_SPEED
     
 
     def is_rotation(self) :
