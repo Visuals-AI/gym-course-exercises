@@ -39,7 +39,7 @@ RTOP_V = [ 100 - i * 10000 for i in TTOP_V ]
 
  
 
-def adjust(obs, action, reward, td: TerminateDetector, step):
+def adjust(obs, action, reward, td: TerminateDetector, step) :
     '''
     奖励重塑。
     :params: obs 当前智能体处于的状态
