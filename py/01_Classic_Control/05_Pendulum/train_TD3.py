@@ -115,8 +115,9 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
     '''
     targs.reset_render_cache()
 
-    cie = CtrlInitEnv(targs.env, targs.epoches) # 通过不断重试，获得各个阶段理想的初始状态，
-    raw_obs = cie.reset(epoch)                  # 以使用“中间难度起点奖励(SoID)”策略帮智能体建立行动策略框架
+    # cie = CtrlInitEnv(targs.env, targs.epoches) # 通过不断重试，获得各个阶段理想的初始状态，
+    # raw_obs = cie.reset(epoch)                  # 以使用“中间难度起点奖励(SoID)”策略帮智能体建立行动策略框架
+    raw_obs = targs.env.reset()
     obs = to_tensor(raw_obs[0], targs, False)   # 把观测空间状态数组送入神经网络所在的设备
     
     total_reward = 0                # 累计智能体从环境中获得的总奖励。在每个训练回合结束时，total_reward 将反映智能体在该回合中的总体表现。奖励越高，意味着智能体的性能越好。
