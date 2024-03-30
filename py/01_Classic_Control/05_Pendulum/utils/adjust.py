@@ -94,7 +94,9 @@ def adjust(obs, action, reward, td: TerminateDetector, step) :
             if is_close_to_zero(1 - x, threshold) and is_close_to_zero(y, threshold) :
                 if direction < 0 :
                     reward += R12_XY[idx]   # 如果方向接近目标，奖励
-                    break
+                else :
+                    pass                    # 如果方向远离目标，不奖
+                break
 
         # 距离梯度奖励（细粒度距离奖励，精细控制可以获得更大的追加奖励）
         for idx, threshold in enumerate(TTOP_XY) :
