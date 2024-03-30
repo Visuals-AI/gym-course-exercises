@@ -133,4 +133,4 @@ class Tagger :
         path = get_render_ui_path(self.course_name, self.model_name, epoch, self.eval)
         dir = os.path.dirname(path)
         create_dirs(dir)
-        imageio.mimwrite(path, self.frames, duration=self.fps)
+        imageio.mimwrite(path, self.frames, duration=self.fps, loop=0)
