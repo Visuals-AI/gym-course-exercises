@@ -148,13 +148,37 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
         labels = [
             f"epoch: {epoch}", 
             f"step: {step_counter}", 
-            f"action: {action}", 
             f"total_reward: {total_reward}", 
             f"total_loss: {total_loss}",
             f"epsilon: {targs.cur_epsilon}", 
-            f"coordinates-x: {obs[0][0]}",      # 自由端的 x 坐标
-            f"coordinates-y: {obs[0][1]}",      # 自由端的 y 坐标
-            f"angular_velocity: {obs[0][2]}",   # 角速度
+            f"r1_torque: {action[0]}", 
+            f"r2_torque: {action[1]}", 
+            f"l1_torque: {action[2]}", 
+            f"l2_torque: {action[3]}", 
+            f"h_v: {obs[0]}", 
+            f"v_v: {obs[1]}", 
+            f"a_v: {obs[2]}", 
+            f"body_angle: {obs[3]}", 
+            f"r1_angle: {obs[4]}", 
+            f"r1_a_v: {obs[5]}", 
+            f"r1_landed: {obs[6]}", 
+            f"r2_angle: {obs[7]}", 
+            f"r2_a_v: {obs[8]}", 
+            f"r2_landed: {obs[9]}", 
+            f"l1_angle: {obs[10]}", 
+            f"l1_a_v: {obs[11]}", 
+            f"l1_landed: {obs[12]}", 
+            f"l2_angle: {obs[13]}", 
+            f"l2_a_v: {obs[14]}", 
+            f"l2_landed: {obs[15]}", 
+            f"h_d: {obs[16]}", 
+            f"gp1: {obs[17]}", 
+            f"gp2: {obs[18]}", 
+            f"gp3: {obs[19]}", 
+            f"gp4: {obs[20]}", 
+            f"gp5: {obs[21]}", 
+            f"gp6: {obs[22]}", 
+            f"gp7: {obs[23]}", 
         ]
         targs.render(labels)
         if done:
