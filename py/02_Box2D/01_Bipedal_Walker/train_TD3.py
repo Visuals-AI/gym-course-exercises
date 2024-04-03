@@ -151,34 +151,18 @@ def train(writer : SummaryWriter, targs : TrainArgs, epoch) :
             f"total_reward: {total_reward}", 
             f"total_loss: {total_loss}",
             f"epsilon: {targs.cur_epsilon}", 
-            f"r1_torque: {action[0]}", 
-            f"r2_torque: {action[1]}", 
-            f"l1_torque: {action[2]}", 
-            f"l2_torque: {action[3]}", 
-            f"h_v: {obs[0][0]}", 
-            f"v_v: {obs[0][1]}", 
-            f"a_v: {obs[0][2]}", 
-            f"body_angle: {obs[0][3]}", 
-            f"r1_angle: {obs[0][4]}", 
-            f"r1_a_v: {obs[0][5]}", 
-            f"r1_landed: {obs[0][6]}", 
-            f"r2_angle: {obs[0][7]}", 
-            f"r2_a_v: {obs[0][8]}", 
-            f"r2_landed: {obs[0][9]}", 
-            f"l1_angle: {obs[0][10]}", 
-            f"l1_a_v: {obs[0][11]}", 
-            f"l1_landed: {obs[0][12]}", 
-            f"l2_angle: {obs[0][13]}", 
-            f"l2_a_v: {obs[0][14]}", 
-            f"l2_landed: {obs[0][15]}", 
-            f"h_d: {obs[0][16]}", 
-            f"gp1: {obs[0][17]}", 
-            f"gp2: {obs[0][18]}", 
-            f"gp3: {obs[0][19]}", 
-            f"gp4: {obs[0][20]}", 
-            f"gp5: {obs[0][21]}", 
-            f"gp6: {obs[0][22]}", 
-            f"gp7: {obs[0][23]}", 
+            f"bot_speed_v: [{obs[0][0]}, {obs[0][1]}]",     # 机器人主体速度：水平、垂直
+            f"bot_speed_a: [{obs[0][2]}, {obs[0][3]}]",     # 机器人主体的角度、角速度
+            f"rleg_torque: [{action[0]}, {action[1]}]",     # 右腿第 1，2 关节的扭矩
+            f"lleg_torque: [{action[2]}, {action[3]}]",     # 左腿第 1，2 关节的扭矩
+            f"rleg_status1: [{obs[0][4]}, {obs[0][5]}, {obs[0][6]}]",       # 右腿关节1 的情况：角度、角速度、是否着地
+            f"rleg_status2: [{obs[0][7]}, {obs[0][8]}, {obs[0][9]}]",       # 右腿关节2 的情况：角度、角速度、是否着地
+            f"lleg_status1: [{obs[0][10]}, {obs[0][11]}, {obs[0][12]}]",    # 左腿关节1 的情况：角度、角速度、是否着地
+            f"lleg_status2: [{obs[0][13]}, {obs[0][14]}, {obs[0][15]}]",    # 左腿关节2 的情况：角度、角速度、是否着地
+            f"perceived_distance: {obs[0][16]}",            # 机器人身体中心点 距离前方第一个被感知的 地形位置（即 obs[0][18]）的水平距离
+            # 机器人感知到前方 7 个连续点的地形高度
+            f"terr_h 1-3: [{obs[0][17]}, {obs[0][18]}, {obs[0][19]}]",
+            f"terr_h 4-7: [{obs[0][20]}, {obs[0][21]}, {obs[0][22]}, {obs[0][23]}]",         
         ]
         targs.render(labels)
         if done:
