@@ -312,7 +312,10 @@ def td3(targs: TrainArgs, step_counter) :
 
 def add_noise(targs: TrainArgs, action, noise) :
     '''
-    为 action 添加噪音：TD3 通过在选取的动作上添加噪声来平滑目标策略
+    为 action 添加噪音：TD3 通过在选取的动作上添加噪声来平滑目标策略。
+    
+    前期在 Actor 上加以一定噪声可以鼓励对环境探索，但噪声对于训练后期算法的收敛是不利的。
+    随着训练的进行逐步减小噪声是一个不错的选择。
     :params: targs 用于训练的环境和模型关键参数
     :params: action 动作张量        array or tensor
     :params: noise 噪音张量         array or tensor
