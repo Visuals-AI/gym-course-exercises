@@ -25,3 +25,6 @@ Cart Pole 是一个倒立摆问题：一根杆子通过非驱动接头直立放�
 
 - 测试所有模型: `python py/01_Classic_Control/02_Cart_Pole/test_DQN.py`
 - 测试单个模型: `python py/01_Classic_Control/02_Cart_Pole/test_DQN.py -m ./out/models/cart_pole/cart_pole_model_epoch_xxxx.pth`
+
+
+> 验证训练好的最优模型: `python py/01_Classic_Control/02_Cart_Pole/test_DQN.py -m ./optimal/01_Classic_Control/02_Cart_Pole/models/cart_pole_model_epoch_7500.pth -a`

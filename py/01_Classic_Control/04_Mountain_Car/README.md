@@ -28,3 +28,6 @@ Mountain Car 是一种确定性 MDP（马尔可夫决策过程）问题。
 
 - 测试所有模型: `python py/01_Classic_Control/04_Mountain_Car/test_DQN.py`
 - 测试单个模型: `python py/01_Classic_Control/04_Mountain_Car/test_DQN.py -m ./out/models/mountain_car/mountain_car_model_epoch_xxxx.pth`
+
+
+> 验证训练好的最优模型: `python py/01_Classic_Control/04_Mountain_Car/test_DQN.py -m ./optimal/01_Classic_Control/04_Mountain_Car/models/mountain_car_model_epoch_500.pth -a`

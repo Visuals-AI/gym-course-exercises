@@ -24,3 +24,6 @@ Pendulum 是一个倒立摆问题：该系统由一个摆锤组成，摆锤的�
 
 - 测试所有模型: `python py/01_Classic_Control/05_Pendulum/test_TD3.py`
 - 测试单个模型: `python py/01_Classic_Control/05_Pendulum/test_TD3.py -m ${model_epoch}`
+
+
+> 验证训练好的最优模型: `python py/01_Classic_Control/05_Pendulum/test_TD3.py -m 9400 -a`
